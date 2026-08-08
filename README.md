@@ -12,6 +12,7 @@ A language learning resource for people who were born with African and Caribbean
 [Live Site] Link
 
 ## FrontEnd Information
+- Interface created by making prototype mockups using Figma 
 - Languages used: HTML, CSS, JavaScript
 
 ## BackEnd Information
@@ -21,7 +22,7 @@ A language learning resource for people who were born with African and Caribbean
 ## Usage
 
 ## ✨ Features
-- Fast and lightweight
-- Clean UI with dark mode
+- Fast
+- Accessibility features like change font, font size, and dark mode
 
 ## Installation
