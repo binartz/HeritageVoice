@@ -3,8 +3,8 @@
    ========================================================================== */
 
 // --- SUPABASE CLIENT INITIALIZATION ---
-const SUPABASE_URL = "YOUR_SUPABASE_PROJECT_URL";
-const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+const SUPABASE_URL = "https://fdirykbtkqnwcjpspofe.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_v7RMflMmWZJvsVXV-aRTRw_2bU3fTcg";
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- GLOBAL APPLICATION STATE ---
