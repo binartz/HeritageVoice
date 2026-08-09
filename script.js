@@ -1,6 +1,117 @@
 /* ==========================================================================
-   HeritageVoice Web Application State & Logic Engine
+   Diasporia Web Application State & Logic Engine
    ========================================================================== */
+// --- SUPABASE CLIENT INITIALIZATION ---
+const SUPABASE_URL = "YOUR_SUPABASE_PROJECT_URL";
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// --- AUTHENTICATION FLOW WITH DATABASE PERSISTENCE ---
+async function handleAuthSubmit(event, type) {
+    event.preventDefault();
+    const email = document.getElementById(type === 'signup' ? "signup-email" : "login-email").value;
+    const password = document.getElementById(type === 'signup' ? "signup-password" : "login-password").value;
+
+    try {
+        let authData;
+        if (type === 'signup') {
+            const { data, error } = await supabase.auth.signUp({ email, password });
+            if (error) throw error;
+            authData = data;
+
+            // Create Profile Record
+            const { error: profileError } = await supabase.from('profiles').insert([{
+                id: authData.user.id,
+                email: email,
+                username: email.split("@")[0]
+            }]);
+            if (profileError) throw profileError;
+
+            showToast("Account created successfully!");
+        } else {
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+            authData = data;
+            showToast("Welcome back!");
+        }
+
+        appState.user.isLoggedIn = true;
+        appState.user.email = authData.user.email;
+        appState.user.username = authData.user.email.split("@")[0];
+
+        navigateTo("method-view");
+    } catch (err) {
+        showToast(`Authentication Error: ${err.message}`);
+    }
+}
+
+// --- CREATE CUSTOM LANGUAGE TO DATABASE ---
+async function handleCreateCustomLanguage(event) {
+    event.preventDefault();
+    const name = document.getElementById("custom-lang-name").value;
+    const origin = document.getElementById("custom-lang-origin").value;
+    const related = document.getElementById("custom-lang-related").value;
+    const level = document.getElementById("custom-lang-level").value;
+
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { error } = await supabase.from('languages').insert([{
+            name, origin, related, level, is_custom: true, created_by: user ? user.id : null
+        }]);
+
+        if (error) throw error;
+
+        appState.user.targetLanguages.push({ name, origin, related, level });
+        appState.user.activeTargetIndex = appState.user.targetLanguages.length - 1;
+
+        closeModal("custom-lang-modal");
+        updateLanguageLabels();
+        showToast(`Added ${name} to your profile and database!`);
+        navigateTo("sample-data-view");
+    } catch (err) {
+        showToast(`Language Creation Error: ${err.message}`);
+    }
+}
+
+// --- SAVE TRANSLATED USER LESSON / CORPUS ---
+async function translateAndAddPhrase() {
+    const input = document.getElementById("custom-known-phrase");
+    if (!input || !input.value) return;
+
+    const knownText = input.value;
+    const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
+    const simulatedTarget = `[${activeTarget.name}] ` + knownText.split(" ").map(w => w + "a").join(" ");
+
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Please log in to save custom phrases.");
+
+        const { error } = await supabase.from('private_corpus').insert([{
+            user_id: user.id,
+            target_lang: activeTarget.name,
+            known_text: knownText,
+            target_text: simulatedTarget,
+            audio_attached: false
+        }]);
+
+        if (error) throw error;
+
+        appState.user.privateCorpus.unshift({
+            id: Date.now(),
+            targetLang: activeTarget.name,
+            knownText: knownText,
+            targetText: simulatedTarget,
+            audioAttached: false,
+            dateAdded: new Date().toISOString().split("T")[0]
+        });
+
+        input.value = "";
+        showToast("Phrase translated & saved to Supabase profile!");
+        renderSampleSentences();
+    } catch (err) {
+        showToast(`Corpus Error: ${err.message}`);
+    }
+}
 
 // --- GLOBAL APPLICATION STATE ---
 const appState = {
