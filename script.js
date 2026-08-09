@@ -2,6 +2,10 @@
    HeritageVoice Web Application State & Logic Engine
    ========================================================================== */
 
+const SUPABASE_URL =  "https://fdirykbtkqnwcjpspofe.supabase.co";
+const SUPABASE_ANON_KEY =  "sb_publishable_v7RMflMmWZJvsVXV-aRTRw_2bU3fTcg";
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 // --- GLOBAL APPLICATION STATE ---
 const appState = {
     user: {
