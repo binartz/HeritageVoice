@@ -1,11 +1,6 @@
 /* ==========================================================================
-   Diasporia Web Application State & Logic Engine
+   HeritageVoice Web Application State & Logic Engine
    ========================================================================== */
-
-// --- SUPABASE CLIENT INITIALIZATION ---
-const SUPABASE_URL = "https://fdirykbtkqnwcjpspofe.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_v7RMflMmWZJvsVXV-aRTRw_2bU3fTcg";
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- GLOBAL APPLICATION STATE ---
 const appState = {
@@ -24,11 +19,13 @@ const appState = {
             }
         ],
         activeTargetIndex: 0,
+        // User's private corpus additions and corrections
         privateCorpus: [
             { id: 1, targetLang: "Sousou", knownText: "How are you doing today?", targetText: "I kene wa?", audioAttached: true, dateAdded: "2026-08-08" },
             { id: 2, targetLang: "Sousou", knownText: "Good morning grandfather", targetText: "Inoma kene", audioAttached: false, dateAdded: "2026-08-08" }
         ]
     },
+    // Pre-populated Target Languages
     availableLanguages: [
         { name: "Sousou", region: "Guinea, West Africa", flag: "🇬🇳", isCustom: false },
         { name: "Haitian Creole", region: "Haiti, Caribbean", flag: "🇭🇹", isCustom: false },
@@ -41,6 +38,7 @@ const appState = {
         { name: "Dutch", region: "Netherlands", flag: "🇳🇱", isCustom: false },
         { name: "Portuguese", region: "Brazil / Angola", flag: "🇵🇹", isCustom: false }
     ],
+    // Map Node Structure for Active Target
     lessonNodes: [
         { id: "A1.1", label: "A1: Greetings & Family", x: 15, y: 80, status: "completed", prompt: "Good morning grandfather", targetText: "Inoma kene" },
         { id: "A1.2", label: "A1: Daily Check-in", x: 30, y: 35, status: "active", prompt: "How are you doing today?", targetText: "I kene wa?" },
@@ -51,43 +49,6 @@ const appState = {
     activeNode: null
 };
 
-// --- DATABASE SYNC & HYDRATION ---
-async function syncUserData(userId) {
-    try {
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
-        if (profile) {
-            appState.user.knownLanguage = profile.known_language || 'English';
-            appState.user.learningStyle = profile.learning_style || 'Sentence Structure Practice';
-        }
-
-        const { data: userLangs } = await supabase.from('languages').select('*').eq('created_by', userId);
-        if (userLangs) {
-            userLangs.forEach(lang => {
-                if (!appState.user.targetLanguages.some(l => l.name === lang.name)) {
-                    appState.user.targetLanguages.push({
-                        name: lang.name, origin: lang.origin, related: lang.related, level: lang.level
-                    });
-                }
-            });
-        }
-
-        const { data: corpus } = await supabase.from('private_corpus').select('*').eq('user_id', userId).order('created_at', { ascending: false });
-        if (corpus) {
-            appState.user.privateCorpus = corpus.map(item => ({
-                id: item.id,
-                targetLang: item.target_lang,
-                knownText: item.known_text,
-                targetText: item.target_text,
-                audioAttached: item.audio_attached,
-                dateAdded: item.created_at
-            }));
-        }
-        renderProfileView();
-    } catch (err) {
-        console.error("Data sync error:", err.message);
-    }
-}
-
 // --- DOM INITIALIZATION ---
 document.addEventListener("DOMContentLoaded", () => {
     renderLanguageGrid();
@@ -95,6 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderSampleSentences();
     renderLessonMap();
 
+    // Setup Known Language dropdown listener
     const knownSelect = document.getElementById("known-language-select");
     if (knownSelect) {
         knownSelect.addEventListener("change", (e) => {
@@ -108,7 +70,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // --- NAVIGATION LOGIC ---
 function navigateTo(viewId) {
-   alert("Button clicked");
     const views = document.querySelectorAll(".view-section");
     views.forEach(v => v.classList.remove("active"));
 
@@ -117,6 +78,7 @@ function navigateTo(viewId) {
         targetView.classList.add("active");
     }
 
+    // Update Header active tab
     const navBtns = document.querySelectorAll(".nav-btn");
     navBtns.forEach(btn => {
         if (btn.getAttribute("data-target") === viewId) {
@@ -126,6 +88,7 @@ function navigateTo(viewId) {
         }
     });
 
+    // Handle view specific initializations
     if (viewId === "lessons-view") {
         renderLessonMap();
     } else if (viewId === "profile-view") {
@@ -154,44 +117,20 @@ function switchAuthTab(type) {
     }
 }
 
-async function handleAuthSubmit(event, type) {
+function handleAuthSubmit(event, type) {
     event.preventDefault();
-    const email = document.getElementById(type === 'signup' ? "signup-email" : "login-email").value;
-    const password = document.getElementById(type === 'signup' ? "signup-password" : "login-password").value;
-
-    try {
-        let authData;
-        if (type === 'signup') {
-            const { data, error } = await supabase.auth.signUp({ email, password });
-            if (error) throw error;
-            authData = data;
-
-            const { error: profileError } = await supabase.from('profiles').insert([{
-                id: authData.user.id,
-                email: email,
-                username: email.split("@")[0]
-            }]);
-            if (profileError) throw profileError;
-
-            showToast("Account created successfully!");
-        } else {
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-            if (error) throw error;
-            authData = data;
-            showToast("Welcome back!");
-        }
-
+    const emailInput = type === 'signup' ? document.getElementById("signup-email") : document.getElementById("login-email");
+    
+    if (emailInput && emailInput.value) {
         appState.user.isLoggedIn = true;
-        appState.user.email = authData.user.email;
-        appState.user.username = authData.user.email.split("@")[0];
+        appState.user.email = emailInput.value;
+        appState.user.username = emailInput.value.split("@")[0];
 
-        await syncUserData(authData.user.id);
-
+        // Update header auth button
         const authBtn = document.getElementById("header-auth-btn");
         if (authBtn) {
             authBtn.innerText = "Log Out";
             authBtn.onclick = () => {
-                supabase.auth.signOut();
                 appState.user.isLoggedIn = false;
                 authBtn.innerText = "Sign In";
                 authBtn.onclick = () => navigateTo('auth-view');
@@ -200,9 +139,9 @@ async function handleAuthSubmit(event, type) {
             };
         }
 
+        showToast(type === 'signup' ? "Account created!" : "Welcome back!");
+        // Requirement: Leads to learning method page after sign in/login
         navigateTo("method-view");
-    } catch (err) {
-        showToast(`Auth Error: ${err.message}`);
     }
 }
 
@@ -243,6 +182,7 @@ function selectTargetLanguage(lang, cardElement) {
     document.querySelectorAll(".lang-card").forEach(c => c.classList.remove("selected"));
     cardElement.classList.add("selected");
 
+    // Check if user already has this language in active list
     const existingIdx = appState.user.targetLanguages.findIndex(l => l.name === lang.name);
     if (existingIdx >= 0) {
         appState.user.activeTargetIndex = existingIdx;
@@ -262,7 +202,8 @@ function selectTargetLanguage(lang, cardElement) {
 
 function updateLanguageLabels() {
     const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
-
+    
+    // Update texts across pages
     const targetNameSpan = document.getElementById("sample-target-name");
     if (targetNameSpan) targetNameSpan.innerText = activeTarget.name;
 
@@ -293,34 +234,31 @@ function closeModal(modalId) {
     document.getElementById(modalId).classList.remove("active");
 }
 
-async function handleCreateCustomLanguage(event) {
+function handleCreateCustomLanguage(event) {
     event.preventDefault();
     const name = document.getElementById("custom-lang-name").value;
     const origin = document.getElementById("custom-lang-origin").value;
     const related = document.getElementById("custom-lang-related").value;
     const level = document.getElementById("custom-lang-level").value;
 
-    try {
-        const { data: { user } } = await supabase.auth.getUser();
+    const newLang = { name, origin, related, level };
+    
+    // Add to state
+    appState.user.targetLanguages.push(newLang);
+    appState.user.activeTargetIndex = appState.user.targetLanguages.length - 1;
+    
+    appState.availableLanguages.unshift({
+        name,
+        region: origin,
+        flag: "🌍",
+        isCustom: true
+    });
 
-        const { error } = await supabase.from('languages').insert([{
-            name, origin, related, level, is_custom: true, created_by: user ? user.id : null
-        }]);
-        if (error) throw error;
-
-        appState.user.targetLanguages.push({ name, origin, related, level });
-        appState.user.activeTargetIndex = appState.user.targetLanguages.length - 1;
-
-        appState.availableLanguages.unshift({ name, region: origin, flag: "🌍", isCustom: true });
-
-        renderLanguageGrid();
-        closeModal("custom-lang-modal");
-        updateLanguageLabels();
-        showToast(`Added ${name} to database and profile!`);
-        navigateTo("sample-data-view");
-    } catch (err) {
-        showToast(`Language Error: ${err.message}`);
-    }
+    renderLanguageGrid();
+    closeModal("custom-lang-modal");
+    updateLanguageLabels();
+    showToast(`Added ${name} to your profile!`);
+    navigateTo("sample-data-view");
 }
 
 // --- SAMPLE DATA & DIAGNOSTIC ---
@@ -358,40 +296,28 @@ function triggerRecordMock(btn) {
     }, 1500);
 }
 
-// --- CORPUS STORAGE UTILITIES & LESSON ACTIONS ---
-async function saveToCorpus(targetLang, knownText, targetText, audioAttached = false) {
-    const { data: { user } } = await supabase.auth.getUser();
-
-    appState.user.privateCorpus.unshift({
-        id: Date.now(),
-        targetLang, knownText, targetText, audioAttached,
-        dateAdded: new Date().toISOString().split("T")[0]
-    });
-
-    if (user) {
-        await supabase.from('private_corpus').insert([{
-            user_id: user.id,
-            target_lang: targetLang,
-            known_text: knownText,
-            target_text: targetText,
-            audio_attached: audioAttached
-        }]);
-    }
-    renderProfileView();
-}
-
-async function translateAndAddPhrase() {
+function translateAndAddPhrase() {
     const input = document.getElementById("custom-known-phrase");
     if (!input || !input.value) return;
 
     const knownText = input.value;
     const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
+
+    // Mock translation response based on phonetic engine
     const simulatedTarget = `[${activeTarget.name}] ` + knownText.split(" ").map(w => w + "a").join(" ");
 
-    await saveToCorpus(activeTarget.name, knownText, simulatedTarget, false);
+    // Save to private corpus
+    appState.user.privateCorpus.unshift({
+        id: Date.now(),
+        targetLang: activeTarget.name,
+        knownText: knownText,
+        targetText: simulatedTarget,
+        audioAttached: false,
+        dateAdded: new Date().toISOString().split("T")[0]
+    });
 
     input.value = "";
-    showToast("Phrase translated & saved to Supabase!");
+    showToast("Phrase translated & saved to your private profile corpus!");
     renderSampleSentences();
 }
 
@@ -411,6 +337,7 @@ function renderLessonMap() {
 
     const nodes = appState.lessonNodes;
 
+    // Draw connecting path SVG
     let pathD = "";
     nodes.forEach((node, idx) => {
         const xPx = (node.x / 100) * container.clientWidth || (node.x * 8);
@@ -434,6 +361,7 @@ function renderLessonMap() {
     pathElement.setAttribute("fill", "none");
     svgCanvas.appendChild(pathElement);
 
+    // Render interactive node buttons
     nodes.forEach((node) => {
         const nodeEl = document.createElement("div");
         nodeEl.className = `map-node ${node.status}`;
@@ -479,25 +407,35 @@ function playAudioMock() {
     }, 2500);
 }
 
-async function simulateCorrection() {
+// Correction in lessons (requirement: correct incorrect translations in lessons)
+function simulateCorrection() {
     const input = document.getElementById("ex-user-input");
     const feedback = document.getElementById("correction-feedback");
-
+    
     if (input && input.value) {
-        if (appState.activeNode) appState.activeNode.targetText = input.value;
+        if (appState.activeNode) {
+            appState.activeNode.targetText = input.value;
+        }
 
+        // Add correction to user's private corpus (Requirement: anything added/modified only on user profile)
         const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
-        const promptText = appState.activeNode ? appState.activeNode.prompt : "Correction";
+        appState.user.privateCorpus.unshift({
+            id: Date.now(),
+            targetLang: activeTarget.name,
+            knownText: appState.activeNode ? appState.activeNode.prompt : "Correction",
+            targetText: input.value + " (User Corrected)",
+            audioAttached: true,
+            dateAdded: new Date().toISOString().split("T")[0]
+        });
 
-        await saveToCorpus(activeTarget.name, promptText, `${input.value} (User Corrected)`, true);
-
-        feedback.innerText = "✓ Translation updated! Saved to your profile corpus.";
+        feedback.innerText = "✓ Translation updated! Your correction has been saved to your private profile corpus.";
         feedback.classList.remove("hidden");
         showToast("Translation correction saved");
     }
 }
 
-async function addInLessonWord() {
+// Requirement: Add any words in native spoken language in lesson & system translates it
+function addInLessonWord() {
     const nativeInput = document.getElementById("in-lesson-native-word");
     if (!nativeInput || !nativeInput.value) return;
 
@@ -505,15 +443,23 @@ async function addInLessonWord() {
     const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
     const translatedWord = `[${activeTarget.name}] ` + word + "i kali";
 
-    await saveToCorpus(activeTarget.name, word, translatedWord, false);
+    appState.user.privateCorpus.unshift({
+        id: Date.now(),
+        targetLang: activeTarget.name,
+        knownText: word,
+        targetText: translatedWord,
+        audioAttached: false,
+        dateAdded: new Date().toISOString().split("T")[0]
+    });
 
     nativeInput.value = "";
-    showToast(`Saved "${word}" → "${translatedWord}"!`);
+    showToast(`Translated "${word}" → "${translatedWord}" & saved to Profile!`);
 }
 
 function completeExerciseNode() {
     if (appState.activeNode) {
         appState.activeNode.status = "completed";
+        // Unlock next node
         const currIdx = appState.lessonNodes.findIndex(n => n.id === appState.activeNode.id);
         if (currIdx >= 0 && currIdx + 1 < appState.lessonNodes.length) {
             appState.lessonNodes[currIdx + 1].status = "active";
@@ -524,17 +470,25 @@ function completeExerciseNode() {
     showToast("Exercise completed!");
 }
 
+// Modal 3: Import data mid-journey
 function openAddDataModal() {
     document.getElementById("add-data-modal").classList.add("active");
 }
 
-async function handleImportData(event) {
+function handleImportData(event) {
     event.preventDefault();
     const known = document.getElementById("import-known-text").value;
     const target = document.getElementById("import-target-text").value;
     const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
 
-    await saveToCorpus(activeTarget.name, known, target, true);
+    appState.user.privateCorpus.unshift({
+        id: Date.now(),
+        targetLang: activeTarget.name,
+        knownText: known,
+        targetText: target,
+        audioAttached: true,
+        dateAdded: new Date().toISOString().split("T")[0]
+    });
 
     closeModal("add-data-modal");
     showToast("Imported sentence & audio snippet to private profile!");
@@ -543,7 +497,8 @@ async function handleImportData(event) {
 // --- PROFILE & SETTINGS RENDER ---
 function renderProfileView() {
     const user = appState.user;
-
+    
+    // User info
     const uName = document.getElementById("profile-username");
     if (uName) uName.innerText = user.username;
 
@@ -553,6 +508,7 @@ function renderProfileView() {
     const uStyle = document.getElementById("profile-learning-style-badge");
     if (uStyle) uStyle.innerText = `Learning Style: ${user.learningStyle}`;
 
+    // Render active target languages list
     const targetsList = document.getElementById("user-target-languages-list");
     if (targetsList) {
         targetsList.innerHTML = user.targetLanguages.map(t => `
@@ -566,6 +522,7 @@ function renderProfileView() {
         `).join("");
     }
 
+    // Render Private Corpus (Requirement: Anything added by user only appears on their profile)
     const corpusList = document.getElementById("private-corpus-list");
     if (corpusList) {
         if (user.privateCorpus.length === 0) {
