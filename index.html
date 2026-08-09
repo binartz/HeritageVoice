@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HeritageVoice - Reconnect with Your Roots</title>
+    <title>Diasporia</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Volkhov:wght@700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -17,7 +17,7 @@
         <div class="header-container">
             <a href="#" class="logo-group" onclick="navigateTo('home-view')">
                 <div class="logo-icon"><i class="fa-solid fa-sparkles"></i></div>
-                <span class="logo-text">HeritageVoice</span>
+                <span class="logo-text">Diasporia</span>
             </a>
             
             <nav class="main-nav" id="main-nav">
@@ -39,16 +39,15 @@
             <div class="hero-card">
                 <div class="hero-bg-glow"></div>
                 <div class="hero-content">
-                    <span class="hero-badge"><i class="fa-solid fa-heart"></i> Built for Heritage Learners</span>
-                    <h1 class="hero-title">Connect to your heritage through language with <span class="brand-highlight">HeritageVoice</span></h1>
-                    <p class="hero-subtitle">Preserving low-resource languages, oral dialects, and native sentence pairs through community-powered active recall and AI synthesis.</p>
+                    <h1 class="hero-title">Connect with your heritage through language with <span class="brand-highlight">Diasporia</span></h1>
+                    <p class="hero-subtitle">Preserving languages and allows</p>
                     <button class="btn btn-primary btn-hero" onclick="navigateTo('auth-view')">
                         Begin your learning <i class="fa-solid fa-arrow-right"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- Value Props / Features -->
+            <!-- Value Props / Features 
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon"><i class="fa-solid fa-microphone-lines"></i></div>
@@ -66,6 +65,7 @@
                     <p>Adapt your learning style from sentence structure practice, interactive flashcards, oral active recall, or gamified challenges.</p>
                 </div>
             </div>
+            -->
         </section>
 
         <!-- 2. AUTH VIEW (Sign Up / Log In) -->
@@ -79,7 +79,7 @@
 
                     <!-- Sign Up Form -->
                     <form id="signup-form" class="auth-form" onsubmit="handleAuthSubmit(event, 'signup')">
-                        <h2>Create your HeritageVoice Account</h2>
+                        <h2>Create your Diasporia Account</h2>
                         <p class="auth-desc">Start preserving and speaking your family's language today.</p>
                         
                         <div class="form-group">
@@ -96,7 +96,7 @@
                     <!-- Log In Form -->
                     <form id="login-form" class="auth-form hidden" onsubmit="handleAuthSubmit(event, 'login')">
                         <h2>Welcome Back</h2>
-                        <p class="auth-desc">Sign in to continue your heritage language path.</p>
+                        <p class="auth-desc">Sign in to continue your language path.</p>
                         
                         <div class="form-group">
                             <label for="login-email">Email Address</label>
@@ -139,7 +139,7 @@
                             <div class="method-radio"></div>
                             <div class="method-info">
                                 <span class="method-title">Interactive Flashcards</span>
-                                <span class="method-desc">Spaced repetition with rich audio & visual triggers.</span>
+                                <span class="method-desc">Spaced repetition with audio & visual triggers.</span>
                             </div>
                         </div>
                         <div class="method-option" data-value="Recall Quizzes" onclick="selectMethod(this)">
@@ -235,7 +235,7 @@
 
                     <!-- Custom Add Diagnostic Phrase -->
                     <div class="add-custom-sample-box">
-                        <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Add Extra Word or Sentence from Memory</h3>
+                        <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Add Extra Word or Sentence</h3>
                         <p>Write a phrase in your known language (<span id="known-lang-label">English</span>). Our AI cross-lingual synthesis will attempt initial translation or mark it for your family validation.</p>
                         <div class="form-row">
                             <input type="text" id="custom-known-phrase" class="form-input" placeholder="e.g. How are you doing today, grandma?">
@@ -294,7 +294,7 @@
                         <i class="fa-solid fa-user-astronaut"></i>
                     </div>
                     <div class="profile-main-info">
-                        <h2 id="profile-username">heritage_learner</h2>
+                        <h2 id="profile-username">diasporia_learner</h2>
                         <p class="profile-email-badge" id="profile-display-email"><i class="fa-solid fa-envelope"></i> user@example.com</p>
                         <span class="style-badge" id="profile-learning-style-badge">Method: Sentence Structure Practice</span>
                     </div>
@@ -391,7 +391,7 @@
                             <option value="A1 Beginner">A1 - Absolute Beginner (Understand few words)</option>
                             <option value="A2 Elementary">A2 - Elementary (Understand basic family conversation)</option>
                             <option value="B1 Intermediate">B1 - Intermediate (Can speak with errors)</option>
-                            <option value="B2 Advanced">B2 - Fluent Heritage Comprehension</option>
+                            <option value="B2 Advanced">B2 - Fluent Comprehension</option>
                         </select>
                     </div>
                 </div>
