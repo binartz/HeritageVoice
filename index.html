@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HeritageVoice - Reconnect with Your Roots</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Volkhov:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <!-- Global Navigation Header -->
+    <header class="app-header">
+        <div class="header-container">
+            <a href="#" class="logo-group" onclick="navigateTo('home-view')">
+                <div class="logo-icon"><i class="fa-solid fa-sparkles"></i></div>
+                <span class="logo-text">HeritageVoice</span>
+            </a>
+            
+            <nav class="main-nav" id="main-nav">
+                <button class="nav-btn active" data-target="home-view" onclick="navigateTo('home-view')">Home</button>
+                <button class="nav-btn" data-target="lessons-view" onclick="navigateTo('lessons-view')">My Lessons</button>
+                <button class="nav-btn" data-target="profile-view" onclick="navigateTo('profile-view')">Profile</button>
+            </nav>
+
+            <div class="header-actions">
+                <button class="btn btn-outline" id="header-auth-btn" onclick="navigateTo('auth-view')">Sign In</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="app-main">
+
+        <!-- 1. HOME VIEW -->
+        <section id="home-view" class="view-section active">
+            <div class="hero-card">
+                <div class="hero-bg-glow"></div>
+                <div class="hero-content">
+                    <span class="hero-badge"><i class="fa-solid fa-heart"></i> Built for Heritage Learners</span>
+                    <h1 class="hero-title">Connect to your heritage through language with <span class="brand-highlight">HeritageVoice</span></h1>
+                    <p class="hero-subtitle">Preserving low-resource languages, oral dialects, and native sentence pairs through community-powered active recall and AI synthesis.</p>
+                    <button class="btn btn-primary btn-hero" onclick="navigateTo('auth-view')">
+                        Begin your learning <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Value Props / Features -->
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fa-solid fa-microphone-lines"></i></div>
+                    <h3>Oral & Unstructured Audio</h3>
+                    <p>Designed specifically for languages without standard written rules. Record audio snippets directly from elders or family members.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fa-solid fa-network-wired"></i></div>
+                    <h3>Cross-Lingual AI Synthesis</h3>
+                    <p>Leverages database linguistic similarities across related dialects to auto-generate full CEFR A1-C2 learning paths.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fa-solid fa-sliders"></i></div>
+                    <h3>Personalized Strategies</h3>
+                    <p>Adapt your learning style from sentence structure practice, interactive flashcards, oral active recall, or gamified challenges.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. AUTH VIEW (Sign Up / Log In) -->
+        <section id="auth-view" class="view-section">
+            <div class="auth-container">
+                <div class="auth-card">
+                    <div class="auth-tabs">
+                        <button class="auth-tab active" onclick="switchAuthTab('signup')">Sign Up</button>
+                        <button class="auth-tab" onclick="switchAuthTab('login')">Log In</button>
+                    </div>
+
+                    <!-- Sign Up Form -->
+                    <form id="signup-form" class="auth-form" onsubmit="handleAuthSubmit(event, 'signup')">
+                        <h2>Create your HeritageVoice Account</h2>
+                        <p class="auth-desc">Start preserving and speaking your family's language today.</p>
+                        
+                        <div class="form-group">
+                            <label for="signup-email">Email Address</label>
+                            <input type="email" id="signup-email" placeholder="name@example.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="signup-password">Password</label>
+                            <input type="password" id="signup-password" placeholder="Create a strong password" required minlength="6">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">Continue to Learning Setup <i class="fa-solid fa-arrow-right"></i></button>
+                    </form>
+
+                    <!-- Log In Form -->
+                    <form id="login-form" class="auth-form hidden" onsubmit="handleAuthSubmit(event, 'login')">
+                        <h2>Welcome Back</h2>
+                        <p class="auth-desc">Sign in to continue your heritage language path.</p>
+                        
+                        <div class="form-group">
+                            <label for="login-email">Email Address</label>
+                            <input type="email" id="login-email" placeholder="name@example.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="login-password">Password</label>
+                            <input type="password" id="login-password" placeholder="Enter your password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">Log In & Continue</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. LEARNING METHOD VIEW -->
+        <section id="method-view" class="view-section">
+            <div class="flow-container">
+                <div class="progress-bar-container">
+                    <div class="progress-step active"><span>1</span> Method</div>
+                    <div class="progress-line"></div>
+                    <div class="progress-step"><span>2</span> Languages</div>
+                    <div class="progress-line"></div>
+                    <div class="progress-step"><span>3</span> Sample Data</div>
+                </div>
+
+                <div class="method-card">
+                    <h2 class="section-title">What method of learning works for you?</h2>
+                    <p class="section-subtitle">Select your preferred strategy. We'll customize your exercise path accordingly.</p>
+
+                    <div class="methods-options" id="methods-list">
+                        <div class="method-option selected" data-value="Sentence Structure Practice" onclick="selectMethod(this)">
+                            <div class="method-radio"></div>
+                            <div class="method-info">
+                                <span class="method-title">Sentence Structure Practice</span>
+                                <span class="method-desc">Deconstruct syntax and build sentences step-by-step.</span>
+                            </div>
+                        </div>
+                        <div class="method-option" data-value="Interactive Flashcards" onclick="selectMethod(this)">
+                            <div class="method-radio"></div>
+                            <div class="method-info">
+                                <span class="method-title">Interactive Flashcards</span>
+                                <span class="method-desc">Spaced repetition with rich audio & visual triggers.</span>
+                            </div>
+                        </div>
+                        <div class="method-option" data-value="Recall Quizzes" onclick="selectMethod(this)">
+                            <div class="method-radio"></div>
+                            <div class="method-info">
+                                <span class="method-title">Recall Quizzes</span>
+                                <span class="method-desc">Active retrieval challenges for high memory retention.</span>
+                            </div>
+                        </div>
+                        <div class="method-option" data-value="Speaking Practice" onclick="selectMethod(this)">
+                            <div class="method-radio"></div>
+                            <div class="method-info">
+                                <span class="method-title">Speaking Practice</span>
+                                <span class="method-desc">Phonetic alignment and live oral comparison.</span>
+                            </div>
+                        </div>
+                        <div class="method-option" data-value="Gamification" onclick="selectMethod(this)">
+                            <div class="method-radio"></div>
+                            <div class="method-info">
+                                <span class="method-title">Gamification</span>
+                                <span class="method-desc">XP, streak tracking, and interactive level maps.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary btn-block btn-lg" onclick="saveMethodAndNext()">
+                        Submit & Select Languages <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. LANGUAGES VIEW -->
+        <section id="languages-view" class="view-section">
+            <div class="flow-container wide">
+                <div class="progress-bar-container">
+                    <div class="progress-step completed"><i class="fa-solid fa-check"></i> Method</div>
+                    <div class="progress-line completed"></div>
+                    <div class="progress-step active"><span>2</span> Languages</div>
+                    <div class="progress-line"></div>
+                    <div class="progress-step"><span>3</span> Sample Data</div>
+                </div>
+
+                <div class="languages-wrapper">
+                    <!-- Spoken / Known Language selection -->
+                    <div class="spoken-lang-bar">
+                        <label for="known-language-select"><i class="fa-solid fa-globe"></i> I understand & speak:</label>
+                        <select id="known-language-select" class="form-select">
+                            <option value="English">English</option>
+                            <option value="French">French</option>
+                            <option value="Spanish">Spanish</option>
+                            <option value="Dutch">Dutch</option>
+                            <option value="Portuguese">Portuguese</option>
+                        </select>
+                    </div>
+
+                    <h2 class="section-title center">What language do you want to learn?</h2>
+                    <p class="section-subtitle center">Choose a target language from our repository or add a low-resource/heritage language of your own.</p>
+
+                    <!-- Language Grid -->
+                    <div class="lang-grid" id="language-grid">
+                        <!-- Populated by JavaScript -->
+                    </div>
+
+                    <div class="create-lang-trigger">
+                        <p class="or-divider"><span>or input your own</span></p>
+                        <button class="btn btn-outline btn-lg" onclick="openCustomLangModal()">
+                            <i class="fa-solid fa-plus-circle"></i> Create Custom Language Entry
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. SAMPLE DATA & INITIAL AUDIO INPUT VIEW -->
+        <section id="sample-data-view" class="view-section">
+            <div class="flow-container">
+                <div class="progress-bar-container">
+                    <div class="progress-step completed"><i class="fa-solid fa-check"></i> Method</div>
+                    <div class="progress-line completed"></div>
+                    <div class="progress-step completed"><i class="fa-solid fa-check"></i> Languages</div>
+                    <div class="progress-line completed"></div>
+                    <div class="progress-step active"><span>3</span> Sample Data</div>
+                </div>
+
+                <div class="sample-data-card">
+                    <h2 class="section-title">Diagnostic & Sample Inputs</h2>
+                    <p class="section-subtitle">To build your custom learning path, provide target translations or audio recordings for these sentences spoken in <strong id="sample-target-name" class="accent-text">Target Language</strong>.</p>
+
+                    <div class="sample-sentences-list" id="sample-sentences-container">
+                        <!-- Sample sentences dynamically rendered -->
+                    </div>
+
+                    <!-- Custom Add Diagnostic Phrase -->
+                    <div class="add-custom-sample-box">
+                        <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Add Extra Word or Sentence from Memory</h3>
+                        <p>Write a phrase in your known language (<span id="known-lang-label">English</span>). Our AI cross-lingual synthesis will attempt initial translation or mark it for your family validation.</p>
+                        <div class="form-row">
+                            <input type="text" id="custom-known-phrase" class="form-input" placeholder="e.g. How are you doing today, grandma?">
+                            <button class="btn btn-secondary" onclick="translateAndAddPhrase()"><i class="fa-solid fa-language"></i> Translate to Target</button>
+                        </div>
+                    </div>
+
+                    <div class="synthesis-banner">
+                        <i class="fa-solid fa-circle-nodes"></i>
+                        <div>
+                            <strong>AI Infrastructure Engine Ready:</strong>
+                            <p id="synthesis-desc">Matching phonetic clusters with existing database families to build A1-C2 lesson nodes...</p>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary btn-block btn-lg" onclick="generateLessonMapAndProceed()">
+                        Generate My Custom Learning Path <i class="fa-solid fa-rocket"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 6. MY LESSONS VIEW (Interactive Map) -->
+        <section id="lessons-view" class="view-section">
+            <div class="lessons-container">
+                <div class="lessons-header">
+                    <div>
+                        <span class="badge-tag" id="current-target-badge"><i class="fa-solid fa-language"></i> Target: Sousou</span>
+                        <h2 class="target-lang-heading" id="map-target-title">Sousou Learning Path</h2>
+                        <p class="level-indicator"><i class="fa-solid fa-layer-group"></i> Current Level: <span id="current-level-tag" class="accent-text">A1 Beginner</span></p>
+                    </div>
+                    <div class="header-buttons">
+                        <button class="btn btn-secondary btn-sm" onclick="openAddDataModal()"><i class="fa-solid fa-plus"></i> Add Audio / Sentences</button>
+                        <button class="btn btn-outline btn-sm" onclick="navigateTo('languages-view')"><i class="fa-solid fa-repeat"></i> Switch Language</button>
+                    </div>
+                </div>
+
+                <!-- Learning Path Map Canvas/Container -->
+                <div class="map-viewport">
+                    <svg class="map-connections-svg" id="map-svg-canvas">
+                        <!-- SVG paths drawn by JS -->
+                    </svg>
+
+                    <div class="map-nodes-container" id="map-nodes-container">
+                        <!-- Node elements rendered by JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 7. PROFILE & SETTINGS VIEW -->
+        <section id="profile-view" class="view-section">
+            <div class="profile-container">
+                <div class="profile-header-card">
+                    <div class="avatar-circle">
+                        <i class="fa-solid fa-user-astronaut"></i>
+                    </div>
+                    <div class="profile-main-info">
+                        <h2 id="profile-username">heritage_learner</h2>
+                        <p class="profile-email-badge" id="profile-display-email"><i class="fa-solid fa-envelope"></i> user@example.com</p>
+                        <span class="style-badge" id="profile-learning-style-badge">Method: Sentence Structure Practice</span>
+                    </div>
+                </div>
+
+                <div class="profile-grid">
+                    <!-- Target Languages Box -->
+                    <div class="profile-card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-globe"></i> Active Target Languages</h3>
+                            <button class="btn-icon" onclick="navigateTo('languages-view')" title="Add New"><i class="fa-solid fa-plus"></i></button>
+                        </div>
+                        <div id="user-target-languages-list" class="target-lang-list">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Personal Corpus / Additions (Private to User) -->
+                    <div class="profile-card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-lock"></i> My Private Sentence & Audio Corpus</h3>
+                            <span class="private-badge"><i class="fa-solid fa-shield-halved"></i> Only Visible To You</span>
+                        </div>
+                        <p class="small-text">Custom phrases, oral snippets, and corrections added during your lessons are stored securely on your local user profile.</p>
+                        <div id="private-corpus-list" class="corpus-list">
+                            <!-- Rendered by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Account Settings -->
+                    <div class="profile-card full-width">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-gear"></i> Account Settings</h3>
+                        </div>
+                        
+                        <div class="settings-forms-grid">
+                            <form onsubmit="handleUpdateEmail(event)" class="settings-form">
+                                <h4>Change Email Address</h4>
+                                <div class="form-group">
+                                    <label>New Email</label>
+                                    <input type="email" id="update-email-input" class="form-input" placeholder="newemail@example.com" required>
+                                </div>
+                                <button type="submit" class="btn btn-secondary">Update Email</button>
+                            </form>
+
+                            <form onsubmit="handleUpdatePassword(event)" class="settings-form">
+                                <h4>Change Password</h4>
+                                <div class="form-group">
+                                    <label>Current Password</label>
+                                    <input type="password" class="form-input" placeholder="••••••••" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>New Password</label>
+                                    <input type="password" class="form-input" placeholder="••••••••" required minlength="6">
+                                </div>
+                                <button type="submit" class="btn btn-secondary">Update Password</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL 1: ADD CUSTOM TARGET LANGUAGE -->
+    <div id="custom-lang-modal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Add Low-Resource / Custom Language</h3>
+                <button class="modal-close" onclick="closeModal('custom-lang-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="handleCreateCustomLanguage(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="custom-lang-name">Language Name *</label>
+                        <input type="text" id="custom-lang-name" class="form-input" placeholder="e.g. Sousou, Garifuna, Haitian Creole" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="custom-lang-origin">Origin / Geographic Region *</label>
+                        <input type="text" id="custom-lang-origin" class="form-input" placeholder="e.g. Guinea, West Africa / Caribbean" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="custom-lang-related">What other language is used / similar to it?</label>
+                        <input type="text" id="custom-lang-related" class="form-input" placeholder="e.g. Mandinka, French, Pular">
+                        <small class="help-text">Our database will ingest diagnostic pairs and map structure from related linguistic families.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="custom-lang-level">Your Current Level</label>
+                        <select id="custom-lang-level" class="form-select">
+                            <option value="A1 Beginner">A1 - Absolute Beginner (Understand few words)</option>
+                            <option value="A2 Elementary">A2 - Elementary (Understand basic family conversation)</option>
+                            <option value="B1 Intermediate">B1 - Intermediate (Can speak with errors)</option>
+                            <option value="B2 Advanced">B2 - Fluent Heritage Comprehension</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('custom-lang-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save & Start Diagnostic</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: LESSON ACTIVE RECALL EXERCISE & CORRECTION -->
+    <div id="lesson-exercise-modal" class="modal-overlay">
+        <div class="modal-card wide">
+            <div class="modal-header">
+                <span class="badge-tag" id="exercise-node-tag">Node A1.1</span>
+                <h3 id="exercise-title">Active Recall & Phonetic Practice</h3>
+                <button class="modal-close" onclick="closeModal('lesson-exercise-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="exercise-box">
+                    <div class="prompt-group">
+                        <span class="prompt-label">Prompt in your known language (<span class="user-known-lang-text">English</span>):</span>
+                        <h2 class="prompt-text" id="ex-prompt-text">"How are you doing today?"</h2>
+                    </div>
+
+                    <div class="target-audio-box">
+                        <div class="audio-player-mock">
+                            <button class="play-btn" onclick="playAudioMock()"><i class="fa-solid fa-play" id="play-icon"></i></button>
+                            <div class="waveform-visualizer">
+                                <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+                                <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+                                <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+                            </div>
+                            <span class="time-code">0:03</span>
+                        </div>
+                        <span class="audio-caption"><i class="fa-solid fa-volume-high"></i> Authentic Target Audio</span>
+                    </div>
+
+                    <div class="translation-edit-section">
+                        <label for="ex-user-input">Target Language Translation (<span class="target-lang-text">Sousou</span>):</label>
+                        <div class="input-with-action">
+                            <input type="text" id="ex-user-input" class="form-input" placeholder="Type target spelling or pronunciation...">
+                            <button class="btn btn-secondary" onclick="simulateCorrection()"><i class="fa-solid fa-pen-to-square"></i> Correct Translation</button>
+                        </div>
+                        <p id="correction-feedback" class="feedback-text hidden"></p>
+                    </div>
+
+                    <!-- Add extra word in native language during lesson -->
+                    <div class="in-lesson-add">
+                        <h4><i class="fa-solid fa-plus-circle"></i> Add your own phrase during this lesson</h4>
+                        <div class="inline-add-row">
+                            <input type="text" id="in-lesson-native-word" class="form-input" placeholder="Add word in your spoken language...">
+                            <button class="btn btn-outline" onclick="addInLessonWord()"><i class="fa-solid fa-wand-magic"></i> Auto-Translate & Save</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('lesson-exercise-modal')">Close</button>
+                <button class="btn btn-primary" onclick="completeExerciseNode()"><i class="fa-solid fa-circle-check"></i> Complete & Save to Profile</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: ADD AUDIO / SENTENCE mid-journey -->
+    <div id="add-data-modal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Import Target Sentence or Audio</h3>
+                <button class="modal-close" onclick="closeModal('add-data-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="handleImportData(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Phrase in Known Language</label>
+                        <input type="text" id="import-known-text" class="form-input" placeholder="e.g. Good morning grandfather" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Target Language Wording / Phonetics</label>
+                        <input type="text" id="import-target-text" class="form-input" placeholder="e.g. Inoma kene" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Upload Audio Recording (Optional)</label>
+                        <div class="file-drop-zone">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <p>Drag & drop voice note or click to upload (.mp3, .wav, .m4a)</p>
+                            <input type="file" class="file-input-hidden" accept="audio/*">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('add-data-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add to Profile Corpus</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast" class="toast">
+        <i class="fa-solid fa-circle-check"></i> <span id="toast-message">Action successful</span>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
