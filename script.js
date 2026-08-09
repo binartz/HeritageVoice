@@ -108,6 +108,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // --- NAVIGATION LOGIC ---
 function navigateTo(viewId) {
+   alert("Button clicked");
     const views = document.querySelectorAll(".view-section");
     views.forEach(v => v.classList.remove("active"));
 
