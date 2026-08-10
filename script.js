@@ -49,7 +49,70 @@ const appState = {
     activeNode: null
 };
 
-// --- DATABASE FETCH: AVAILABLE LANGUAGES ---
+// --- 3. STATE MANAGEMENT HELPERS ---
+function resetUserState() {
+    appState.user = {
+        isLoggedIn: false,
+        email: "user@heritagevoice.org",
+        username: "heritage_learner",
+        knownLanguage: "English",
+        learningStyle: "Sentence Structure Practice",
+        targetLanguages: [
+            {
+                name: "Sousou",
+                origin: "Guinea, West Africa",
+                related: "Mandinka, Pular",
+                level: "A1 Beginner"
+            }
+        ],
+        activeTargetIndex: 0,
+        privateCorpus: []
+    };
+    try {
+        localStorage.removeItem('heritage_voice_state');
+    } catch (e) {
+        console.warn("LocalStorage access restricted:", e);
+    }
+}
+
+function saveStateToStorage() {
+    try {
+        if (appState && appState.user) {
+            localStorage.setItem('heritage_voice_state', JSON.stringify(appState.user));
+        }
+    } catch (e) {
+        console.warn("LocalStorage access restricted:", e);
+    }
+}
+
+async function fetchUserProfile(userId) {
+    if (!supabaseClient) return;
+
+    try {
+        const { data: profile, error } = await supabaseClient
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+
+        if (error) throw error;
+
+        if (profile) {
+            appState.user.email = profile.email;
+            appState.user.username = profile.username || profile.email.split("@")[0];
+            appState.user.knownLanguage = profile.known_language || "English";
+            appState.user.learningStyle = profile.learning_style || "Sentence Structure Practice";
+            appState.user.isLoggedIn = true;
+
+            renderProfileView();
+            updateLanguageLabels();
+        }
+    } catch (err) {
+        console.warn("Could not fetch user profile from Supabase:", err.message);
+    }
+}
+
+// --- 4. DATABASE FETCH: AVAILABLE LANGUAGES ---
 async function fetchAvailableLanguages() {
     try {
         if (!supabaseClient) throw new Error("Supabase SDK not loaded");
@@ -81,7 +144,7 @@ async function fetchAvailableLanguages() {
     }
 }
 
-// --- DOM INITIALIZATION ---
+// --- 5. DOM INITIALIZATION ---
 document.addEventListener("DOMContentLoaded", async () => {
     await fetchAvailableLanguages();
 
@@ -101,7 +164,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 });
 
-// --- NAVIGATION LOGIC ---
+// --- 6. NAVIGATION LOGIC ---
 function navigateTo(viewId) {
     const views = document.querySelectorAll(".view-section");
     views.forEach(v => v.classList.remove("active"));
@@ -129,7 +192,7 @@ function navigateTo(viewId) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// --- AUTHENTICATION FLOW ---
+// --- 7. AUTHENTICATION FLOW ---
 function switchAuthTab(type) {
     const tabs = document.querySelectorAll(".auth-tab");
     const signupForm = document.getElementById("signup-form");
@@ -174,6 +237,7 @@ async function handleAuthSubmit(event, type) {
 
     try {
         let authUserEmail = email;
+        let authUserId = null;
 
         if (supabaseClient && supabaseClient.auth) {
             const { data, error } = type === 'signup' 
@@ -186,17 +250,19 @@ async function handleAuthSubmit(event, type) {
                 return;
             }
 
-            if (data?.user?.email) {
+            if (data?.user) {
                 authUserEmail = data.user.email;
+                authUserId = data.user.id;
             }
 
-            // Save extra profile state on Sign Up
+            // Save/Upsert extra profile state on Sign Up
             if (type === 'signup' && data?.user) {
                 const { error: profileError } = await supabaseClient
                     .from('profiles')
                     .upsert([{
                         id: data.user.id,
                         email: data.user.email,
+                        username: data.user.email.split("@")[0],
                         learning_style: appState.user.learningStyle,
                         known_language: appState.user.knownLanguage
                     }]);
@@ -205,22 +271,23 @@ async function handleAuthSubmit(event, type) {
                     console.warn("Could not save profile preferences:", profileError.message);
                 }
             }
+
+            // Hydrate state from database
+            if (authUserId) {
+                await fetchUserProfile(authUserId);
+            }
         } else {
             console.warn("Supabase client offline. Proceeding with local state.");
-        }
-
-        if (appState && appState.user) {
             appState.user.email = authUserEmail;
             appState.user.username = authUserEmail.split("@")[0];
             appState.user.isLoggedIn = true;
-            appState.currentUser = appState.user;
         }
 
         const authBtn = document.getElementById("header-auth-btn");
         const profileDisplay = document.getElementById("profile-display-email");
         
         if (profileDisplay) {
-            profileDisplay.innerHTML = `<i class="fa-solid fa-envelope"></i> ${authUserEmail}`;
+            profileDisplay.innerHTML = `<i class="fa-solid fa-envelope"></i> ${appState.user.email}`;
         }
 
         if (authBtn) {
@@ -229,9 +296,15 @@ async function handleAuthSubmit(event, type) {
                 if (supabaseClient && supabaseClient.auth) {
                     await supabaseClient.auth.signOut();
                 }
-                if (appState?.user) appState.user.isLoggedIn = false;
+                
+                // Clear state & update UI back to defaults
+                resetUserState();
+                renderProfileView();
+                updateLanguageLabels();
+
                 authBtn.innerText = "Sign In";
                 authBtn.onclick = () => navigateTo('auth-view');
+                
                 navigateTo('home-view');
                 if (typeof showToast === 'function') showToast("Logged out successfully");
             };
@@ -248,17 +321,7 @@ async function handleAuthSubmit(event, type) {
     }
 }
 
-function saveStateToStorage() {
-    try {
-        if (window.appState && window.appState.user) {
-            localStorage.setItem('heritage_voice_state', JSON.stringify(appState.user));
-        }
-    } catch (e) {
-        console.warn("LocalStorage access restricted:", e);
-    }
-}
-
-// --- METHOD SELECTION ---
+// --- 8. METHOD SELECTION ---
 function selectMethod(element) {
     document.querySelectorAll(".method-option").forEach(opt => opt.classList.remove("selected"));
     element.classList.add("selected");
@@ -271,7 +334,7 @@ function saveMethodAndNext() {
     navigateTo("languages-view");
 }
 
-// --- LANGUAGES SELECTION & CREATION ---
+// --- 9. LANGUAGES SELECTION & CREATION ---
 function renderLanguageGrid() {
     const grid = document.getElementById("language-grid");
     if (!grid) return;
@@ -337,7 +400,6 @@ function updateLanguageLabels() {
     }
 }
 
-// --- MODAL: CUSTOM LANGUAGE INPUT ---
 function openCustomLangModal() {
     const modal = document.getElementById("custom-lang-modal");
     if (modal) modal.classList.add("active");
@@ -393,7 +455,7 @@ async function handleCreateCustomLanguage(event) {
     }
 }
 
-// --- SAMPLE DATA & DIAGNOSTIC ---
+// --- 10. SAMPLE DATA & DIAGNOSTIC ---
 function renderSampleSentences() {
     const container = document.getElementById("sample-sentences-container");
     if (!container) return;
@@ -456,7 +518,7 @@ function generateLessonMapAndProceed() {
     navigateTo("lessons-view");
 }
 
-// --- LESSON MAP & EXERCISE MODAL ---
+// --- 11. LESSON MAP & EXERCISE MODAL ---
 function renderLessonMap() {
     const container = document.getElementById("map-nodes-container");
     const svgCanvas = document.getElementById("map-svg-canvas");
@@ -628,7 +690,7 @@ function handleImportData(event) {
     showToast("Imported sentence & audio snippet to private profile!");
 }
 
-// --- PROFILE & SETTINGS RENDER ---
+// --- 12. PROFILE & SETTINGS RENDER ---
 function renderProfileView() {
     const user = appState.user;
 
@@ -689,7 +751,7 @@ function handleUpdatePassword(e) {
     e.target.reset();
 }
 
-// --- UTILITY: TOAST NOTIFICATIONS ---
+// --- 13. UTILITY: TOAST NOTIFICATIONS ---
 function showToast(msg) {
     const toast = document.getElementById("toast");
     const toastMsg = document.getElementById("toast-message");
