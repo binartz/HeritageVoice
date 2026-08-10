@@ -194,7 +194,7 @@ async function handleAuthSubmit(event, type) {
             if (type === 'signup' && data?.user) {
                 const { error: profileError } = await supabaseClient
                     .from('profiles')
-                    .insert([{
+                    .upsert([{
                         id: data.user.id,
                         email: data.user.email,
                         learning_style: appState.user.learningStyle,
