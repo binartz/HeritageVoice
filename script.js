@@ -5,7 +5,9 @@
 // --- SUPABASE CLIENT INITIALIZATION ---
 const SUPABASE_URL = "https://fdirykbtkqnwcjpspofe.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_v7RMflMmWZJvsVXV-aRTRw_2bU3fTcg";
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = (typeof supabase !== 'undefined' && supabase.createClient) 
+    ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
+    : null;
 
 // --- GLOBAL APPLICATION STATE ---
 const appState = {
@@ -46,6 +48,8 @@ const appState = {
 // --- DATABASE FETCH: AVAILABLE LANGUAGES ---
 async function fetchAvailableLanguages() {
     try {
+        if (!supabaseClient) throw new Error("Supabase SDK not loaded");
+
         const { data, error } = await supabaseClient
             .from('languages')
             .select('*')
@@ -63,8 +67,7 @@ async function fetchAvailableLanguages() {
             }));
         }
     } catch (err) {
-        console.error("Error fetching languages from Supabase:", err.message);
-        showToast("Could not load languages from database. Using offline fallback.");
+        console.warn("Supabase fetch fallback:", err.message);
         
         // Fallback default if database connection fails or table is empty
         appState.availableLanguages = [
@@ -76,16 +79,13 @@ async function fetchAvailableLanguages() {
 
 // --- DOM INITIALIZATION ---
 document.addEventListener("DOMContentLoaded", async () => {
-    // Fetch languages from Supabase first
     await fetchAvailableLanguages();
 
-    // Render UI components after fetching database records
     renderLanguageGrid();
     renderProfileView();
     renderSampleSentences();
     renderLessonMap();
 
-    // Setup Known Language dropdown listener
     const knownSelect = document.getElementById("known-language-select");
     if (knownSelect) {
         knownSelect.addEventListener("change", (e) => {
@@ -126,6 +126,26 @@ function navigateTo(viewId) {
 }
 
 // --- AUTHENTICATION FLOW ---
+function switchAuthTab(type) {
+    const tabs = document.querySelectorAll(".auth-tab");
+    const signupForm = document.getElementById("signup-form");
+    const loginForm = document.getElementById("login-form");
+
+    if (!signupForm || !loginForm) return;
+
+    if (type === 'signup') {
+        if (tabs[0]) tabs[0].classList.add("active");
+        if (tabs[1]) tabs[1].classList.remove("active");
+        signupForm.classList.remove("hidden");
+        loginForm.classList.add("hidden");
+    } else {
+        if (tabs[1]) tabs[1].classList.add("active");
+        if (tabs[0]) tabs[0].classList.remove("active");
+        loginForm.classList.remove("hidden");
+        signupForm.classList.add("hidden");
+    }
+}
+
 async function handleAuthSubmit(event, type) {
     if (event && typeof event.preventDefault === 'function') {
         event.preventDefault();
@@ -136,7 +156,7 @@ async function handleAuthSubmit(event, type) {
 
     if (!emailInput || !passwordInput) {
         if (typeof showToast === 'function') showToast(`HTML Error: Missing input fields for ${type}`);
-        console.error("Missing inputs in DOM. Ensure form IDs match 'signup-email', 'signup-password', 'login-email', and 'login-password'.");
+        console.error("Missing input fields in DOM.");
         return;
     }
 
@@ -151,36 +171,48 @@ async function handleAuthSubmit(event, type) {
     try {
         let authUserEmail = email;
 
-        // 1. Attempt Supabase Auth if initialized
-        if (typeof supabaseClient !== 'undefined' && supabaseClient?.auth) {
+        if (supabaseClient && supabaseClient.auth) {
             const { data, error } = type === 'signup' 
                 ? await supabaseClient.auth.signUp({ email, password })
                 : await supabaseClient.auth.signInWithPassword({ email, password });
 
             if (error) {
                 if (typeof showToast === 'function') showToast(`Auth error: ${error.message}`);
-                console.error("Supabase error:", error);
+                console.error("Supabase auth error:", error);
                 return;
             }
 
             if (data?.user?.email) {
                 authUserEmail = data.user.email;
             }
+
+            // Save extra profile state on Sign Up
+            if (type === 'signup' && data?.user) {
+                const { error: profileError } = await supabaseClient
+                    .from('profiles')
+                    .insert([{
+                        id: data.user.id,
+                        email: data.user.email,
+                        learning_style: appState.user.learningStyle,
+                        known_language: appState.user.knownLanguage
+                    }]);
+
+                if (profileError) {
+                    console.warn("Could not save profile preferences:", profileError.message);
+                }
+            }
         } else {
-            console.warn("Supabase client not detected. Continuing with local application state.");
+            console.warn("Supabase client offline. Proceeding with local state.");
         }
 
-        // 2. Safely Update Application State (handles both currentUser and user schemas)
-        if (typeof appState !== 'undefined') {
-            if (!appState.currentUser) appState.currentUser = {};
-            appState.currentUser.email = authUserEmail;
-            appState.currentUser.isLoggedIn = true;
-            
-            // Mirror to appState.user if your structure uses it
-            appState.user = appState.currentUser;
+        // Safely update user properties without overwriting appState.user object
+        if (appState && appState.user) {
+            appState.user.email = authUserEmail;
+            appState.user.username = authUserEmail.split("@")[0];
+            appState.user.isLoggedIn = true;
+            appState.currentUser = appState.user;
         }
 
-        // 3. Update Header UI
         const authBtn = document.getElementById("header-auth-btn");
         const profileDisplay = document.getElementById("profile-display-email");
         
@@ -191,10 +223,10 @@ async function handleAuthSubmit(event, type) {
         if (authBtn) {
             authBtn.innerText = "Log Out";
             authBtn.onclick = async () => {
-                if (typeof supabaseClient !== 'undefined' && supabaseClient?.auth) {
+                if (supabaseClient && supabaseClient.auth) {
                     await supabaseClient.auth.signOut();
                 }
-                if (appState?.currentUser) appState.currentUser.isLoggedIn = false;
+                if (appState?.user) appState.user.isLoggedIn = false;
                 authBtn.innerText = "Sign In";
                 authBtn.onclick = () => navigateTo('auth-view');
                 navigateTo('home-view');
@@ -202,19 +234,26 @@ async function handleAuthSubmit(event, type) {
             };
         }
 
-        // 4. Save state & navigate
-        if (typeof saveStateToStorage === 'function') saveStateToStorage();
+        saveStateToStorage();
         if (typeof showToast === 'function') showToast(type === 'signup' ? "Account created successfully!" : "Welcome back!");
         
         navigateTo("method-view");
 
     } catch (err) {
-        console.error("Unexpected auth exception caught:", err);
-        // Fallback navigation so the user is never blocked by an unexpected runtime exception
+        console.error("Unexpected auth exception:", err);
         navigateTo("method-view");
     }
 }
 
+function saveStateToStorage() {
+    try {
+        if (window.appState && window.appState.user) {
+            localStorage.setItem('heritage_voice_state', JSON.stringify(appState.user));
+        }
+    } catch (e) {
+        console.warn("LocalStorage access restricted:", e);
+    }
+}
 
 // --- METHOD SELECTION ---
 function selectMethod(element) {
@@ -272,6 +311,7 @@ function selectTargetLanguage(lang, cardElement) {
 
 function updateLanguageLabels() {
     const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
+    if (!activeTarget) return;
     
     const targetNameSpan = document.getElementById("sample-target-name");
     if (targetNameSpan) targetNameSpan.innerText = activeTarget.name;
@@ -296,19 +336,23 @@ function updateLanguageLabels() {
 
 // --- MODAL: CUSTOM LANGUAGE INPUT ---
 function openCustomLangModal() {
-    document.getElementById("custom-lang-modal").classList.add("active");
+    const modal = document.getElementById("custom-lang-modal");
+    if (modal) modal.classList.add("active");
 }
 
 function closeModal(modalId) {
-    document.getElementById(modalId).classList.remove("active");
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.remove("active");
 }
 
 async function handleCreateCustomLanguage(event) {
     event.preventDefault();
-    const name = document.getElementById("custom-lang-name").value;
-    const origin = document.getElementById("custom-lang-origin").value;
-    const related = document.getElementById("custom-lang-related").value;
-    const level = document.getElementById("custom-lang-level").value;
+    const name = document.getElementById("custom-lang-name")?.value;
+    const origin = document.getElementById("custom-lang-origin")?.value;
+    const related = document.getElementById("custom-lang-related")?.value;
+    const level = document.getElementById("custom-lang-level")?.value;
+
+    if (!name || !origin) return;
 
     const newLangObj = {
         name: name,
@@ -317,16 +361,14 @@ async function handleCreateCustomLanguage(event) {
         is_custom: true
     };
 
-    // Save newly created language to Supabase
     try {
-        const { data, error } = await supabaseClient
-            .from('languages')
-            .insert([newLangObj])
-            .select();
+        if (supabaseClient) {
+            const { error } = await supabaseClient
+                .from('languages')
+                .insert([newLangObj]);
+            if (error) throw error;
+        }
 
-        if (error) throw error;
-
-        // Add to local state
         appState.user.targetLanguages.push({ name, origin, related, level });
         appState.user.activeTargetIndex = appState.user.targetLanguages.length - 1;
         
@@ -467,15 +509,23 @@ function openExerciseModal(node) {
     appState.activeNode = node;
     const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
 
-    document.getElementById("exercise-node-tag").innerText = node.id;
-    document.getElementById("ex-prompt-text").innerText = `"${node.prompt}"`;
+    const tag = document.getElementById("exercise-node-tag");
+    if (tag) tag.innerText = node.id;
+
+    const prompt = document.getElementById("ex-prompt-text");
+    if (prompt) prompt.innerText = `"${node.prompt}"`;
+
     document.querySelectorAll(".user-known-lang-text").forEach(el => el.innerText = appState.user.knownLanguage);
-    document.querySelectorAll(".target-lang-text").forEach(el => el.innerText = activeTarget.name);
+    document.querySelectorAll(".target-lang-text").forEach(el => el.innerText = activeTarget ? activeTarget.name : "Target");
 
-    document.getElementById("ex-user-input").value = node.targetText;
-    document.getElementById("correction-feedback").classList.add("hidden");
+    const input = document.getElementById("ex-user-input");
+    if (input) input.value = node.targetText;
 
-    document.getElementById("lesson-exercise-modal").classList.add("active");
+    const feedback = document.getElementById("correction-feedback");
+    if (feedback) feedback.classList.add("hidden");
+
+    const modal = document.getElementById("lesson-exercise-modal");
+    if (modal) modal.classList.add("active");
 }
 
 function playAudioMock() {
@@ -502,15 +552,17 @@ function simulateCorrection() {
         const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
         appState.user.privateCorpus.unshift({
             id: Date.now(),
-            targetLang: activeTarget.name,
+            targetLang: activeTarget ? activeTarget.name : "Target",
             knownText: appState.activeNode ? appState.activeNode.prompt : "Correction",
             targetText: input.value + " (User Corrected)",
             audioAttached: true,
             dateAdded: new Date().toISOString().split("T")[0]
         });
 
-        feedback.innerText = "✓ Translation updated! Your correction has been saved to your private profile corpus.";
-        feedback.classList.remove("hidden");
+        if (feedback) {
+            feedback.innerText = "✓ Translation updated! Saved to your private profile corpus.";
+            feedback.classList.remove("hidden");
+        }
         showToast("Translation correction saved");
     }
 }
@@ -521,11 +573,11 @@ function addInLessonWord() {
 
     const word = nativeInput.value;
     const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
-    const translatedWord = `[${activeTarget.name}] ` + word + "i kali";
+    const translatedWord = `[${activeTarget ? activeTarget.name : 'Target'}] ` + word + "i kali";
 
     appState.user.privateCorpus.unshift({
         id: Date.now(),
-        targetLang: activeTarget.name,
+        targetLang: activeTarget ? activeTarget.name : "Target",
         knownText: word,
         targetText: translatedWord,
         audioAttached: false,
@@ -550,18 +602,19 @@ function completeExerciseNode() {
 }
 
 function openAddDataModal() {
-    document.getElementById("add-data-modal").classList.add("active");
+    const modal = document.getElementById("add-data-modal");
+    if (modal) modal.classList.add("active");
 }
 
 function handleImportData(event) {
     event.preventDefault();
-    const known = document.getElementById("import-known-text").value;
-    const target = document.getElementById("import-target-text").value;
+    const known = document.getElementById("import-known-text")?.value;
+    const target = document.getElementById("import-target-text")?.value;
     const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
 
     appState.user.privateCorpus.unshift({
         id: Date.now(),
-        targetLang: activeTarget.name,
+        targetLang: activeTarget ? activeTarget.name : "Target",
         knownText: known,
         targetText: target,
         audioAttached: true,
@@ -600,7 +653,7 @@ function renderProfileView() {
 
     const corpusList = document.getElementById("private-corpus-list");
     if (corpusList) {
-        if (user.privateCorpus.length === 0) {
+        if (!user.privateCorpus || user.privateCorpus.length === 0) {
             corpusList.innerHTML = `<p class="small-text">No custom sentences added yet.</p>`;
         } else {
             corpusList.innerHTML = user.privateCorpus.map(item => `
@@ -618,7 +671,7 @@ function renderProfileView() {
 
 function handleUpdateEmail(e) {
     e.preventDefault();
-    const newEmail = document.getElementById("update-email-input").value;
+    const newEmail = document.getElementById("update-email-input")?.value;
     if (newEmail) {
         appState.user.email = newEmail;
         renderProfileView();
