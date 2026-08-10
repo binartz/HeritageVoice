@@ -80,21 +80,20 @@
                     </div>
 
                     <!-- Sign Up Form -->
-                    <form id="signup-form" class="auth-form" onsubmit="handleAuthSubmit(event, 'signup')">
-                        <h2>Create your HeritageVoice Account</h2>
-                        <p class="auth-desc">Start preserving and speaking your family's language today.</p>
-                        
-                        <div class="form-group">
-                            <label for="signup-email">Email Address</label>
-                            <input type="email" id="signup-email" placeholder="name@example.com" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="signup-password">Password</label>
-                            <input type="password" id="signup-password" placeholder="Create a strong password" required minlength="6">
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-block">Continue to Learning Setup <i class="fa-solid fa-arrow-right"></i></button>
-                    </form>
-
+                        <form id="signup-form" class="auth-form" onsubmit="handleAuthSubmit(event, 'signup')">
+                            <div class="form-group">
+                                <label for="signup-email">Email Address</label>
+                                <input type="email" id="signup-email" class="form-input" placeholder="you@example.com" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="signup-password">Password</label>
+                                <input type="password" id="signup-password" class="form-input" placeholder="Create a strong password" required minlength="6">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block">
+                                Continue to Learning Setup <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </form>
+                                                                    
                     <!-- Log In Form -->
                     <form id="login-form" class="auth-form hidden" onsubmit="handleAuthSubmit(event, 'login')">
                         <h2>Welcome Back</h2>
