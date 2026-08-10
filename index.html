@@ -172,50 +172,47 @@
             </div>
         </section>
 
-        <!-- 4. LANGUAGES VIEW -->
-        <section id="languages-view" class="view-section">
-            <div class="flow-container wide">
-                <div class="progress-bar-container">
-                    <div class="progress-step completed"><i class="fa-solid fa-check"></i> Method</div>
-                    <div class="progress-line completed"></div>
-                    <div class="progress-step active"><span>2</span> Languages</div>
-                    <div class="progress-line"></div>
-                    <div class="progress-step"><span>3</span> Sample Data</div>
-                </div>
+      <!-- 4. LANGUAGES VIEW -->
+<section id="languages-view" class="view-section">
+    <div class="flow-container wide">
+        <div class="progress-bar-container">
+            <div class="progress-step completed"><i class="fa-solid fa-check"></i> Method</div>
+            <div class="progress-line completed"></div>
+            <div class="progress-step active"><span>2</span> Languages</div>
+            <div class="progress-line"></div>
+            <div class="progress-step"><span>3</span> Sample Data</div>
+        </div>
 
-                <div class="languages-wrapper">
-                    <!-- Spoken / Known Language selection -->
-                    <div class="spoken-lang-bar">
-                        <label for="known-language-select"><i class="fa-solid fa-globe"></i> I understand & speak:</label>
-                        <select id="known-language-select" class="form-select">
-                            <option value="English">English</option>
-                            <option value="French">French</option>
-                            <option value="Spanish">Spanish</option>
-                            <option value="Dutch">Dutch</option>
-                            <option value="Portuguese">Portuguese</option>
-                        </select>
-                    </div>
-
-                    <!-- Language Grid -->
-               
-                        <section id="languages-view" class="view-section active">
-                          <h2>Select Your Target Language</h2>
-                          <p>Choose a language from your Supabase catalog to begin learning.</p>
-                      <!-- JavaScript populates database records into this element -->
-                          <div id="language-grid" class="language-grid"></div>
-                            </section>
-                     
-           
-
-                    <div class="create-lang-trigger">
-                        <p class="or-divider"><span>or input your own</span></p>
-                        <button class="btn btn-outline btn-lg" onclick="openCustomLangModal()">
-                            <i class="fa-solid fa-plus-circle"></i> Create Custom Language Entry
-                        </button>
-                    </div>
-                </div>
+        <div class="languages-wrapper">
+            <!-- Spoken / Known Language selection -->
+            <div class="spoken-lang-bar">
+                <label for="known-language-select"><i class="fa-solid fa-globe"></i> I understand & speak:</label>
+                <select id="known-language-select" class="form-select">
+                    <option value="English">English</option>
+                    <option value="French">French</option>
+                    <option value="Spanish">Spanish</option>
+                    <option value="Dutch">Dutch</option>
+                    <option value="Portuguese">Portuguese</option>
+                </select>
             </div>
-        </section>
+
+            <!-- Target Language Grid Section -->
+            <div class="target-language-selection">
+                <h2>Select Your Target Language</h2>
+                <p>Choose a language from your database catalog to begin learning.</p>
+                <!-- JavaScript populates database records into this element -->
+                <div id="language-grid" class="language-grid"></div>
+            </div>
+
+            <div class="create-lang-trigger">
+                <p class="or-divider"><span>or input your own</span></p>
+                <button type="button" class="btn btn-outline btn-lg" onclick="openCustomLangModal()">
+                    <i class="fa-solid fa-plus-circle"></i> Create Custom Language Entry
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
 
         <!-- 5. SAMPLE DATA & INITIAL AUDIO INPUT VIEW -->
         <section id="sample-data-view" class="view-section">
