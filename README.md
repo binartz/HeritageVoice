@@ -1,8 +1,7 @@
-# Diasporia
+# HeritageVoice
 
 A language learning resource for people who were born with African and Caribbean heritage and have access to their country's language on their own terms.
 
-- **Authors:** Bintou Baysmore
 - **Problem it solves:** Languages going extinct and the loss of culture passing down to new generations
 - **What the resource does:** Allows people who have limited access to their family's language to be able to finally learn it.
 - **Why it was built:** In order to bring the confidence and joy back to learning your culture and being able to connect with family.
@@ -17,7 +16,6 @@ A language learning resource for people who were born with African and Caribbean
 - Languages used: HTML, CSS, JavaScript
 
 ## BackEnd Information
-- used AI for help in this part while also learning the language in order to debugg
 - Languages used: SQL 
 - APIs Used
 
