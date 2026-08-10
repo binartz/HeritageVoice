@@ -601,13 +601,14 @@ function renderLessonMap() {
         container.appendChild(nodeEl);
     });
 }
-
+//updated exercise modal to actually show the users learning style
 function openExerciseModal(node) {
     appState.activeNode = node;
     const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
 
+    // 1. Update Modal Headers
     const tag = document.getElementById("exercise-node-tag");
-    if (tag) tag.innerText = node.id;
+    if (tag) tag.innerText = `${node.id} (${appState.user.learningStyle})`;
 
     const prompt = document.getElementById("ex-prompt-text");
     if (prompt) prompt.innerText = `"${node.prompt}"`;
@@ -615,14 +616,67 @@ function openExerciseModal(node) {
     document.querySelectorAll(".user-known-lang-text").forEach(el => el.innerText = appState.user.knownLanguage);
     document.querySelectorAll(".target-lang-text").forEach(el => el.innerText = activeTarget ? activeTarget.name : "Target");
 
-    const input = document.getElementById("ex-user-input");
-    if (input) input.value = node.targetText;
+    // 2. Dynamically Render Exercise UI Based on Learning Style
+    renderExerciseContainer(node, activeTarget);
 
+    // 3. Reset Feedback
     const feedback = document.getElementById("correction-feedback");
     if (feedback) feedback.classList.add("hidden");
 
+    // 4. Show Modal
     const modal = document.getElementById("lesson-exercise-modal");
     if (modal) modal.classList.add("active");
+}
+//extra js for the learning styles and how they should operate
+function renderExerciseContainer(node, activeTarget) {
+    const container = document.getElementById("exercise-interactive-container");
+    if (!container) return;
+
+    const style = appState.user.learningStyle;
+
+    if (style === "Flashcards") {
+        container.innerHTML = `
+            <div class="flashcard-wrapper" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <span class="small-text">${appState.user.knownLanguage}</span>
+                        <h3>${node.prompt}</h3>
+                        <p class="flashcard-hint"><i class="fa-solid fa-rotate"></i> Click to flip</p>
+                    </div>
+                    <div class="flashcard-back">
+                        <span class="small-text">${activeTarget ? activeTarget.name : "Target"}</span>
+                        <h3>${node.targetText}</h3>
+                        <button class="sample-audio-btn" onclick="event.stopPropagation(); playAudioMock();">
+                            <i class="fa-solid fa-volume-high"></i> Listen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else if (style === "Oral & Audio Practice" || style === "Audio Focus") {
+        container.innerHTML = `
+            <div class="audio-exercise-box">
+                <p>Listen to the pronunciation and repeat:</p>
+                <button class="sample-audio-btn large" onclick="playAudioMock()">
+                    <i class="fa-solid fa-play" id="play-icon"></i> Play Pronunciation
+                </button>
+                <div class="waveform-visualizer"></div>
+                <div class="sample-input-group" style="margin-top: 1rem;">
+                    <button class="sample-audio-btn" onclick="triggerRecordMock(this)">
+                        <i class="fa-solid fa-microphone"></i> Record Your Voice
+                    </button>
+                </div>
+            </div>
+        `;
+    } else {
+        // Default: Sentence Structure Practice / Text Input
+        container.innerHTML = `
+            <div class="sample-input-group">
+                <input type="text" id="ex-user-input" class="form-input" value="${node.targetText}" placeholder="Type target language translation...">
+                <button class="btn btn-secondary" onclick="simulateCorrection()">Save / Correct</button>
+            </div>
+        `;
+    }
 }
 
 function playAudioMock() {
