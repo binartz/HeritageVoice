@@ -21,8 +21,10 @@
             </a>
             
             <nav class="main-nav" id="main-nav">
-                <button class="nav-btn active" data-target="home-view" onclick="navigateTo('home-view')">Home</button>
-                <button class="nav-btn" data-target="lessons-view" onclick="navigateTo('lessons-view')">My Lessons</button>
+                <!-- Update your header navigation HTML buttons to include data-target -->
+                <button class="nav-btn" data-target="home-view" onclick="navigateTo('home-view')">Home</button>
+                <button class="nav-btn" data-target="method-view" onclick="navigateTo('method-view')">Method</button>
+                <button class="nav-btn" data-target="languages-view" onclick="navigateTo('languages-view')">Languages</button>
                 <button class="nav-btn" data-target="profile-view" onclick="navigateTo('profile-view')">Profile</button>
             </nav>
 
@@ -497,6 +499,12 @@
     <div id="toast" class="toast">
         <i class="fa-solid fa-circle-check"></i> <span id="toast-message">Action successful</span>
     </div>
+
+    <!-- Add near the end of index.html -->
+<div id="toast" class="toast">
+    <i class="fa-solid fa-circle-check"></i>
+    <span id="toast-message">Notification</span>
+</div>
 
     <script src="script.js"></script>
 </body>
