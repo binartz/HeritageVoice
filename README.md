@@ -17,8 +17,8 @@ An AI demo language learning resource for people who were born with African and 
 - Languages used: HTML, CSS, JavaScript
 
 ## BackEnd Information
-- Languages used: SQL 
-- APIs Used
+- Languages used: SQL
+- Supabase
 
 ## Usage
 
