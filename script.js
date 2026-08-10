@@ -49,7 +49,7 @@ const appState = {
     activeNode: null
 };
 
-// --- 3. STATE MANAGEMENT HELPERS ---
+// --- 3. STATE MANAGEMENT & SUPABASE SYNC HELPERS ---
 function resetUserState() {
     appState.user = {
         isLoggedIn: false,
@@ -85,6 +85,27 @@ function saveStateToStorage() {
     }
 }
 
+async function saveUserLanguagesToSupabase() {
+    if (!supabaseClient || !appState.user.isLoggedIn) return;
+
+    try {
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (!user) return;
+
+        const { error } = await supabaseClient
+            .from('profiles')
+            .update({
+                target_languages: appState.user.targetLanguages,
+                active_target_index: appState.user.activeTargetIndex
+            })
+            .eq('id', user.id);
+
+        if (error) throw error;
+    } catch (err) {
+        console.warn("Could not sync target languages to Supabase:", err.message);
+    }
+}
+
 async function fetchUserProfile(userId) {
     if (!supabaseClient) return;
 
@@ -102,6 +123,13 @@ async function fetchUserProfile(userId) {
             appState.user.username = profile.username || profile.email.split("@")[0];
             appState.user.knownLanguage = profile.known_language || "English";
             appState.user.learningStyle = profile.learning_style || "Sentence Structure Practice";
+            
+            // Restore saved target languages from database
+            if (profile.target_languages && profile.target_languages.length > 0) {
+                appState.user.targetLanguages = profile.target_languages;
+                appState.user.activeTargetIndex = profile.active_target_index || 0;
+            }
+
             appState.user.isLoggedIn = true;
 
             renderProfileView();
@@ -264,7 +292,9 @@ async function handleAuthSubmit(event, type) {
                         email: data.user.email,
                         username: data.user.email.split("@")[0],
                         learning_style: appState.user.learningStyle,
-                        known_language: appState.user.knownLanguage
+                        known_language: appState.user.knownLanguage,
+                        target_languages: appState.user.targetLanguages,
+                        active_target_index: appState.user.activeTargetIndex
                     }]);
 
                 if (profileError) {
@@ -372,32 +402,8 @@ function selectTargetLanguage(lang, cardElement) {
     }
 
     updateLanguageLabels();
+    saveUserLanguagesToSupabase();
     navigateTo("sample-data-view");
-}
-
-function updateLanguageLabels() {
-    const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
-    if (!activeTarget) return;
-    
-    const targetNameSpan = document.getElementById("sample-target-name");
-    if (targetNameSpan) targetNameSpan.innerText = activeTarget.name;
-
-    const knownLangLabel = document.getElementById("known-lang-label");
-    if (knownLangLabel) knownLangLabel.innerText = appState.user.knownLanguage;
-
-    const mapTitle = document.getElementById("map-target-title");
-    if (mapTitle) mapTitle.innerText = `${activeTarget.name} Learning Path`;
-
-    const targetBadge = document.getElementById("current-target-badge");
-    if (targetBadge) targetBadge.innerHTML = `<i class="fa-solid fa-language"></i> Target: ${activeTarget.name}`;
-
-    const levelTag = document.getElementById("current-level-tag");
-    if (levelTag) levelTag.innerText = activeTarget.level || "A1 Beginner";
-
-    const synthDesc = document.getElementById("synthesis-desc");
-    if (synthDesc) {
-        synthDesc.innerText = `Ingesting cross-lingual similarities from ${activeTarget.related || 'related languages'} to generate low-latency recall modules for ${activeTarget.name}.`;
-    }
 }
 
 function openCustomLangModal() {
@@ -414,15 +420,14 @@ async function handleCreateCustomLanguage(event) {
     event.preventDefault();
     const name = document.getElementById("custom-lang-name")?.value;
     const origin = document.getElementById("custom-lang-origin")?.value;
-    const related = document.getElementById("custom-lang-related")?.value;
-    const level = document.getElementById("custom-lang-level")?.value;
+    const related = document.getElementById("custom-lang-related")?.value || "Custom Family";
+    const level = document.getElementById("custom-lang-level")?.value || "A1 Beginner";
 
     if (!name || !origin) return;
 
     const newLangObj = {
         name: name,
-        region: origin,
-        flag: "🌍",
+        origin: origin,
         is_custom: true
     };
 
@@ -447,11 +452,38 @@ async function handleCreateCustomLanguage(event) {
         renderLanguageGrid();
         closeModal("custom-lang-modal");
         updateLanguageLabels();
+        await saveUserLanguagesToSupabase();
+        
         showToast(`Added ${name} to database & profile!`);
         navigateTo("sample-data-view");
     } catch (err) {
         console.error("Error saving custom language:", err.message);
         showToast("Error adding custom language to database.");
+    }
+}
+
+function updateLanguageLabels() {
+    const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
+    if (!activeTarget) return;
+    
+    const targetNameSpan = document.getElementById("sample-target-name");
+    if (targetNameSpan) targetNameSpan.innerText = activeTarget.name;
+
+    const knownLangLabel = document.getElementById("known-lang-label");
+    if (knownLangLabel) knownLangLabel.innerText = appState.user.knownLanguage;
+
+    const mapTitle = document.getElementById("map-target-title");
+    if (mapTitle) mapTitle.innerText = `${activeTarget.name} Learning Path`;
+
+    const targetBadge = document.getElementById("current-target-badge");
+    if (targetBadge) targetBadge.innerHTML = `<i class="fa-solid fa-language"></i> Target: ${activeTarget.name}`;
+
+    const levelTag = document.getElementById("current-level-tag");
+    if (levelTag) levelTag.innerText = activeTarget.level || "A1 Beginner";
+
+    const synthDesc = document.getElementById("synthesis-desc");
+    if (synthDesc) {
+        synthDesc.innerText = `Ingesting cross-lingual similarities from ${activeTarget.related || 'related languages'} to generate low-latency recall modules for ${activeTarget.name}.`;
     }
 }
 
