@@ -43,7 +43,7 @@
                 <div class="hero-content">
                     <span class="hero-badge"><i class="fa-solid fa-heart"></i> Built for Heritage Learners</span>
                     <h1 class="hero-title">Connect to your heritage through language with <span class="brand-highlight">HeritageVoice</span></h1>
-                    <p class="hero-subtitle">Preserving low-resource languages, oral dialects, and native sentence pairs.</p>
+                    <p class="hero-subtitle">Preserving low-resource languages.</p>
                     <button class="btn btn-primary btn-hero" onclick="navigateTo('auth-view')">
                         Begin your learning <i class="fa-solid fa-arrow-right"></i>
                     </button>
@@ -70,48 +70,53 @@
             </div>
         </section>
 
-        <!-- 2. AUTH VIEW (Sign Up / Log In) -->
-        <section id="auth-view" class="view-section">
-            <div class="auth-container">
-                <div class="auth-card">
-                    <div class="auth-tabs">
-                        <button class="auth-tab active" onclick="switchAuthTab('signup')">Sign Up</button>
-                        <button class="auth-tab" onclick="switchAuthTab('login')">Log In</button>
-                    </div>
-
-                    <!-- Sign Up Form -->
-                        <form id="signup-form" class="auth-form" onsubmit="handleAuthSubmit(event, 'signup')">
-                            <div class="form-group">
-                                <label for="signup-email">Email Address</label>
-                                <input type="email" id="signup-email" class="form-input" placeholder="you@example.com" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="signup-password">Password</label>
-                                <input type="password" id="signup-password" class="form-input" placeholder="Create a strong password" required minlength="6">
-                            </div>
-                            <button type="submit" class="btn btn-primary btn-block">
-                                Continue to Learning Setup <i class="fa-solid fa-arrow-right"></i>
-                            </button>
-                        </form>
-                                                                    
-                    <!-- Log In Form -->
-                    <form id="login-form" class="auth-form hidden" onsubmit="handleAuthSubmit(event, 'login')">
-                        <h2>Welcome Back</h2>
-                        <p class="auth-desc">Sign in to continue your heritage language path.</p>
-                        
-                        <div class="form-group">
-                            <label for="login-email">Email Address</label>
-                            <input type="email" id="login-email" placeholder="name@example.com" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="login-password">Password</label>
-                            <input type="password" id="login-password" placeholder="Enter your password" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-block">Log In & Continue</button>
-                    </form>
-                </div>
+     <!-- 2. AUTH VIEW (Sign Up / Log In) -->
+<section id="auth-view" class="view-section">
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-tabs">
+                <button type="button" class="auth-tab active" onclick="switchAuthTab('signup')">Sign Up</button>
+                <button type="button" class="auth-tab" onclick="switchAuthTab('login')">Log In</button>
             </div>
-        </section>
+
+            <!-- Sign Up Form -->
+            <form id="signup-form" class="auth-form" onsubmit="handleAuthSubmit(event, 'signup')">
+                <h2>Create an Account</h2>
+                <p class="auth-desc">Start your heritage language learning path.</p>
+
+                <div class="form-group">
+                    <label for="signup-email">Email Address</label>
+                    <input type="email" id="signup-email" class="form-input" placeholder="you@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-password">Password</label>
+                    <input type="password" id="signup-password" class="form-input" placeholder="Create a strong password" required minlength="6">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">
+                    Continue to Learning Setup <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </form>
+
+            <!-- Log In Form -->
+            <form id="login-form" class="auth-form hidden" onsubmit="handleAuthSubmit(event, 'login')">
+                <h2>Welcome Back</h2>
+                <p class="auth-desc">Sign in to continue your heritage language path.</p>
+                
+                <div class="form-group">
+                    <label for="login-email">Email Address</label>
+                    <input type="email" id="login-email" class="form-input" placeholder="name@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" class="form-input" placeholder="Enter your password" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">
+                    Log In & Continue <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+</section>
 
         <!-- 3. LEARNING METHOD VIEW -->
         <section id="method-view" class="view-section">
