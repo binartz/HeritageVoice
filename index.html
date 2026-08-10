@@ -22,7 +22,6 @@
             </a>
             
             <nav class="main-nav" id="main-nav">
-                <!-- Update your header navigation HTML buttons to include data-target -->
                 <button class="nav-btn" data-target="home-view" onclick="navigateTo('home-view')">Home</button>
                 <button class="nav-btn" data-target="method-view" onclick="navigateTo('method-view')">Method</button>
                 <button class="nav-btn" data-target="languages-view" onclick="navigateTo('languages-view')">Languages</button>
@@ -44,7 +43,7 @@
                 <div class="hero-content">
                     <span class="hero-badge"><i class="fa-solid fa-heart"></i> Built for Heritage Learners</span>
                     <h1 class="hero-title">Connect to your heritage through language with <span class="brand-highlight">HeritageVoice</span></h1>
-                    <p class="hero-subtitle">Preserving low-resource languages. And instilling confidence in YOU.</p>
+                    <p class="hero-subtitle">Preserving low-resource languages and instilling confidence in YOU.</p>
                     <button class="btn btn-primary btn-hero" onclick="navigateTo('auth-view')">
                         Begin your learning <i class="fa-solid fa-arrow-right"></i>
                     </button>
@@ -71,53 +70,53 @@
             </div>
         </section>
 
-     <!-- 2. AUTH VIEW (Sign Up / Log In) -->
-<section id="auth-view" class="view-section">
-    <div class="auth-container">
-        <div class="auth-card">
-            <div class="auth-tabs">
-                <button type="button" class="auth-tab active" onclick="switchAuthTab('signup')">Sign Up</button>
-                <button type="button" class="auth-tab" onclick="switchAuthTab('login')">Log In</button>
+        <!-- 2. AUTH VIEW (Sign Up / Log In) -->
+        <section id="auth-view" class="view-section">
+            <div class="auth-container">
+                <div class="auth-card">
+                    <div class="auth-tabs">
+                        <button type="button" class="auth-tab active" onclick="switchAuthTab('signup')">Sign Up</button>
+                        <button type="button" class="auth-tab" onclick="switchAuthTab('login')">Log In</button>
+                    </div>
+
+                    <!-- Sign Up Form -->
+                    <form id="signup-form" class="auth-form" onsubmit="handleAuthSubmit(event, 'signup')">
+                        <h2>Create an Account</h2>
+                        <p class="auth-desc">Start your heritage language learning path.</p>
+
+                        <div class="form-group">
+                            <label for="signup-email">Email Address</label>
+                            <input type="email" id="signup-email" class="form-input" placeholder="you@example.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="signup-password">Password</label>
+                            <input type="password" id="signup-password" class="form-input" placeholder="Create a strong password" required minlength="6">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">
+                            Continue to Learning Setup <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </form>
+
+                    <!-- Log In Form -->
+                    <form id="login-form" class="auth-form hidden" onsubmit="handleAuthSubmit(event, 'login')">
+                        <h2>Welcome Back</h2>
+                        <p class="auth-desc">Sign in to continue your heritage language path.</p>
+                        
+                        <div class="form-group">
+                            <label for="login-email">Email Address</label>
+                            <input type="email" id="login-email" class="form-input" placeholder="name@example.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="login-password">Password</label>
+                            <input type="password" id="login-password" class="form-input" placeholder="Enter your password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">
+                            Log In & Continue <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </form>
+                </div>
             </div>
-
-            <!-- Sign Up Form -->
-            <form id="signup-form" class="auth-form" onsubmit="handleAuthSubmit(event, 'signup')">
-                <h2>Create an Account</h2>
-                <p class="auth-desc">Start your heritage language learning path.</p>
-
-                <div class="form-group">
-                    <label for="signup-email">Email Address</label>
-                    <input type="email" id="signup-email" class="form-input" placeholder="you@example.com" required>
-                </div>
-                <div class="form-group">
-                    <label for="signup-password">Password</label>
-                    <input type="password" id="signup-password" class="form-input" placeholder="Create a strong password" required minlength="6">
-                </div>
-                <button type="submit" class="btn btn-primary btn-block">
-                    Continue to Learning Setup <i class="fa-solid fa-arrow-right"></i>
-                </button>
-            </form>
-
-            <!-- Log In Form -->
-            <form id="login-form" class="auth-form hidden" onsubmit="handleAuthSubmit(event, 'login')">
-                <h2>Welcome Back</h2>
-                <p class="auth-desc">Sign in to continue your heritage language path.</p>
-                
-                <div class="form-group">
-                    <label for="login-email">Email Address</label>
-                    <input type="email" id="login-email" class="form-input" placeholder="name@example.com" required>
-                </div>
-                <div class="form-group">
-                    <label for="login-password">Password</label>
-                    <input type="password" id="login-password" class="form-input" placeholder="Enter your password" required>
-                </div>
-                <button type="submit" class="btn btn-primary btn-block">
-                    Log In & Continue <i class="fa-solid fa-arrow-right"></i>
-                </button>
-            </form>
-        </div>
-    </div>
-</section>
+        </section>
 
         <!-- 3. LEARNING METHOD VIEW -->
         <section id="method-view" class="view-section">
@@ -179,47 +178,46 @@
             </div>
         </section>
 
-      <!-- 4. LANGUAGES VIEW -->
-<section id="languages-view" class="view-section">
-    <div class="flow-container wide">
-        <div class="progress-bar-container">
-            <div class="progress-step completed"><i class="fa-solid fa-check"></i> Method</div>
-            <div class="progress-line completed"></div>
-            <div class="progress-step active"><span>2</span> Languages</div>
-            <div class="progress-line"></div>
-            <div class="progress-step"><span>3</span> Sample Data</div>
-        </div>
+        <!-- 4. LANGUAGES VIEW -->
+        <section id="languages-view" class="view-section">
+            <div class="flow-container wide">
+                <div class="progress-bar-container">
+                    <div class="progress-step completed"><i class="fa-solid fa-check"></i> Method</div>
+                    <div class="progress-line completed"></div>
+                    <div class="progress-step active"><span>2</span> Languages</div>
+                    <div class="progress-line"></div>
+                    <div class="progress-step"><span>3</span> Sample Data</div>
+                </div>
 
-        <div class="languages-wrapper">
-            <!-- Spoken / Known Language selection -->
-            <div class="spoken-lang-bar">
-                <label for="known-language-select"><i class="fa-solid fa-globe"></i> I understand & speak:</label>
-                <select id="known-language-select" class="form-select">
-                    <option value="English">English</option>
-                    <option value="French">French</option>
-                    <option value="Spanish">Spanish</option>
-                    <option value="Dutch">Dutch</option>
-                    <option value="Portuguese">Portuguese</option>
-                </select>
-            </div>
+                <div class="languages-wrapper">
+                    <!-- Spoken / Known Language selection -->
+                    <div class="spoken-lang-bar">
+                        <label for="known-language-select"><i class="fa-solid fa-globe"></i> I understand & speak:</label>
+                        <select id="known-language-select" class="form-select">
+                            <option value="English">English</option>
+                            <option value="French">French</option>
+                            <option value="Spanish">Spanish</option>
+                            <option value="Dutch">Dutch</option>
+                            <option value="Portuguese">Portuguese</option>
+                        </select>
+                    </div>
 
-            <!-- Target Language Grid Section -->
-            <div class="target-language-selection">
-                <h2>Select Your Target Language</h2>
-                <p>Choose a language from your database catalog to begin learning.</p>
-                <!-- JavaScript populates database records into this element -->
-                <div id="language-grid" class="language-grid"></div>
-            </div>
+                    <!-- Target Language Grid Section -->
+                    <div class="target-language-selection">
+                        <h2>Select Your Target Language</h2>
+                        <p>Choose a language from your database catalog to begin learning.</p>
+                        <div id="language-grid" class="language-grid"></div>
+                    </div>
 
-            <div class="create-lang-trigger">
-                <p class="or-divider"><span>or input your own</span></p>
-                <button type="button" class="btn btn-outline btn-lg" onclick="openCustomLangModal()">
-                    <i class="fa-solid fa-plus-circle"></i> Create Custom Language Entry
-                </button>
+                    <div class="create-lang-trigger">
+                        <p class="or-divider"><span>or input your own</span></p>
+                        <button type="button" class="btn btn-outline btn-lg" onclick="openCustomLangModal()">
+                            <i class="fa-solid fa-plus-circle"></i> Create Custom Language Entry
+                        </button>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-</section>
+        </section>
 
         <!-- 5. SAMPLE DATA & INITIAL AUDIO INPUT VIEW -->
         <section id="sample-data-view" class="view-section">
@@ -425,6 +423,9 @@
                         <h2 class="prompt-text" id="ex-prompt-text">"How are you doing today?"</h2>
                     </div>
 
+                    <!-- Dynamic UI Container for dynamic exercise types -->
+                    <div id="exercise-interactive-container"></div>
+
                     <div class="target-audio-box">
                         <div class="audio-player-mock">
                             <button class="play-btn" onclick="playAudioMock()"><i class="fa-solid fa-play" id="play-icon"></i></button>
@@ -464,7 +465,7 @@
         </div>
     </div>
 
-    <!-- MODAL 3: ADD AUDIO / SENTENCE mid-journey -->
+    <!-- MODAL 3: ADD AUDIO / SENTENCE MID-JOURNEY -->
     <div id="add-data-modal" class="modal-overlay">
         <div class="modal-card">
             <div class="modal-header">
@@ -500,41 +501,11 @@
         </div>
     </div>
 
-<!--Added to create the different lesson modals -->    
-    <div id="lesson-exercise-modal" class="modal-overlay">
-        <div class="modal-card">
-            <button class="modal-close-btn" onclick="closeModal('lesson-exercise-modal')">&times;</button>
-            
-            <div class="modal-header">
-                <span id="exercise-node-tag" class="badge-tag">A1.1</span>
-                <h3 id="ex-prompt-text">"Prompt sentence"</h3>
-            </div>
-
-            <!-- Dynamic UI Container -->
-            <div id="exercise-interactive-container">
-                <!-- JavaScript dynamically renders Flashcards, Audio UI, or Inputs here -->
-            </div>
-
-            <!-- Feedback & Actions -->
-            <div id="correction-feedback" class="feedback-box hidden"></div>
-
-            <div class="modal-footer" style="margin-top: 1.5rem;">
-                <button class="btn btn-primary" onclick="completeExerciseNode()">Complete Lesson</button>
-            </div>
-        </div>
-    </div>
-
-    
     <!-- Toast Notification Container -->
     <div id="toast" class="toast">
-        <i class="fa-solid fa-circle-check"></i> <span id="toast-message">Action successful</span>
+        <i class="fa-solid fa-circle-check"></i>
+        <span id="toast-message">Notification</span>
     </div>
-
-    <!-- Add near the end of index.html -->
-<div id="toast" class="toast">
-    <i class="fa-solid fa-circle-check"></i>
-    <span id="toast-message">Notification</span>
-</div>
 
     <script src="script.js"></script>
 </body>
