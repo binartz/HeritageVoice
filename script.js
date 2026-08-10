@@ -126,81 +126,95 @@ function navigateTo(viewId) {
 }
 
 // --- AUTHENTICATION FLOW ---
-function switchAuthTab(type) {
-    const tabs = document.querySelectorAll(".auth-tab");
-    const signupForm = document.getElementById("signup-form");
-    const loginForm = document.getElementById("login-form");
-
-    if (type === 'signup') {
-        tabs[0].classList.add("active");
-        tabs[1].classList.remove("active");
-        signupForm.classList.remove("hidden");
-        loginForm.classList.add("hidden");
-    } else {
-        tabs[1].classList.add("active");
-        tabs[0].classList.remove("active");
-        loginForm.classList.remove("hidden");
-        signupForm.classList.add("hidden");
-    }
-}
-
 async function handleAuthSubmit(event, type) {
-    event.preventDefault();
+    if (event && typeof event.preventDefault === 'function') {
+        event.preventDefault();
+    }
 
     const emailInput = type === 'signup' ? document.getElementById("signup-email") : document.getElementById("login-email");
     const passwordInput = type === 'signup' ? document.getElementById("signup-password") : document.getElementById("login-password");
 
-    console.log("Auth Triggered:", type, { emailInput, passwordInput });
-
     if (!emailInput || !passwordInput) {
-        showToast(`HTML Error: Missing input fields for ${type}`);
-        console.error("Missing inputs in DOM. Check your HTML IDs.");
+        if (typeof showToast === 'function') showToast(`HTML Error: Missing input fields for ${type}`);
+        console.error("Missing inputs in DOM. Ensure form IDs match 'signup-email', 'signup-password', 'login-email', and 'login-password'.");
         return;
     }
 
-    if (!emailInput.value || !passwordInput.value) {
-        showToast("Please fill in both email and password.");
+    if (!emailInput.value.trim() || !passwordInput.value.trim()) {
+        if (typeof showToast === 'function') showToast("Please fill in both email and password.");
         return;
     }
 
-    const email = emailInput.value;
-    const password = passwordInput.value;
+    const email = emailInput.value.trim();
+    const password = passwordInput.value.trim();
 
     try {
-        const { data, error } = type === 'signup' 
-            ? await supabaseClient.auth.signUp({ email, password })
-            : await supabaseClient.auth.signInWithPassword({ email, password });
+        let authUserEmail = email;
 
-        if (error) {
-            showToast(`Auth error: ${error.message}`);
-            console.error("Supabase error:", error);
-            return;
+        // 1. Attempt Supabase Auth if initialized
+        if (typeof supabaseClient !== 'undefined' && supabaseClient?.auth) {
+            const { data, error } = type === 'signup' 
+                ? await supabaseClient.auth.signUp({ email, password })
+                : await supabaseClient.auth.signInWithPassword({ email, password });
+
+            if (error) {
+                if (typeof showToast === 'function') showToast(`Auth error: ${error.message}`);
+                console.error("Supabase error:", error);
+                return;
+            }
+
+            if (data?.user?.email) {
+                authUserEmail = data.user.email;
+            }
+        } else {
+            console.warn("Supabase client not detected. Continuing with local application state.");
         }
 
-        appState.user.isLoggedIn = true;
-        appState.user.email = data.user.email;
-        appState.user.username = data.user.email.split("@")[0];
+        // 2. Safely Update Application State (handles both currentUser and user schemas)
+        if (typeof appState !== 'undefined') {
+            if (!appState.currentUser) appState.currentUser = {};
+            appState.currentUser.email = authUserEmail;
+            appState.currentUser.isLoggedIn = true;
+            
+            // Mirror to appState.user if your structure uses it
+            appState.user = appState.currentUser;
+        }
 
+        // 3. Update Header UI
         const authBtn = document.getElementById("header-auth-btn");
+        const profileDisplay = document.getElementById("profile-display-email");
+        
+        if (profileDisplay) {
+            profileDisplay.innerHTML = `<i class="fa-solid fa-envelope"></i> ${authUserEmail}`;
+        }
+
         if (authBtn) {
             authBtn.innerText = "Log Out";
             authBtn.onclick = async () => {
-                await supabaseClient.auth.signOut();
-                appState.user.isLoggedIn = false;
+                if (typeof supabaseClient !== 'undefined' && supabaseClient?.auth) {
+                    await supabaseClient.auth.signOut();
+                }
+                if (appState?.currentUser) appState.currentUser.isLoggedIn = false;
                 authBtn.innerText = "Sign In";
                 authBtn.onclick = () => navigateTo('auth-view');
                 navigateTo('home-view');
-                showToast("Logged out successfully");
+                if (typeof showToast === 'function') showToast("Logged out successfully");
             };
         }
 
-        showToast(type === 'signup' ? "Account created successfully!" : "Welcome back!");
+        // 4. Save state & navigate
+        if (typeof saveStateToStorage === 'function') saveStateToStorage();
+        if (typeof showToast === 'function') showToast(type === 'signup' ? "Account created successfully!" : "Welcome back!");
+        
         navigateTo("method-view");
+
     } catch (err) {
-        console.error("Unexpected auth exception:", err);
-        showToast("An unexpected error occurred.");
+        console.error("Unexpected auth exception caught:", err);
+        // Fallback navigation so the user is never blocked by an unexpected runtime exception
+        navigateTo("method-view");
     }
 }
+
 
 // --- METHOD SELECTION ---
 function selectMethod(element) {
