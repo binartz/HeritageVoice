@@ -1,9 +1,10 @@
 /* ==========================================================================
    HeritageVoice Web Application State & Logic Engine
    ========================================================================== */
+
 // --- SUPABASE CLIENT INITIALIZATION ---
-const SUPABASE_URL =  "https://fdirykbtkqnwcjpspofe.supabase.co";
-const SUPABASE_ANON_KEY =  "sb_publishable_v7RMflMmWZJvsVXV-aRTRw_2bU3fTcg";
+const SUPABASE_URL = "https://fdirykbtkqnwcjpspofe.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_v7RMflMmWZJvsVXV-aRTRw_2bU3fTcg";
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- GLOBAL APPLICATION STATE ---
@@ -149,45 +150,56 @@ async function handleAuthSubmit(event, type) {
     const emailInput = type === 'signup' ? document.getElementById("signup-email") : document.getElementById("login-email");
     const passwordInput = type === 'signup' ? document.getElementById("signup-password") : document.getElementById("login-password");
 
-    if (!emailInput || !passwordInput || !emailInput.value || !passwordInput.value) {
-        showToast("Please provide both email and password.");
+    console.log("Auth Triggered:", type, { emailInput, passwordInput });
+
+    if (!emailInput || !passwordInput) {
+        showToast(`HTML Error: Missing input fields for ${type}`);
+        console.error("Missing inputs in DOM. Check your HTML IDs.");
+        return;
+    }
+
+    if (!emailInput.value || !passwordInput.value) {
+        showToast("Please fill in both email and password.");
         return;
     }
 
     const email = emailInput.value;
     const password = passwordInput.value;
 
-    // Call Supabase based on mode
-    const { data, error } = type === 'signup' 
-        ? await supabaseClient.auth.signUp({ email, password })
-        : await supabaseClient.auth.signInWithPassword({ email, password });
+    try {
+        const { data, error } = type === 'signup' 
+            ? await supabaseClient.auth.signUp({ email, password })
+            : await supabaseClient.auth.signInWithPassword({ email, password });
 
-    if (error) {
-        showToast(`Authentication failed: ${error.message}`);
-        return;
+        if (error) {
+            showToast(`Auth error: ${error.message}`);
+            console.error("Supabase error:", error);
+            return;
+        }
+
+        appState.user.isLoggedIn = true;
+        appState.user.email = data.user.email;
+        appState.user.username = data.user.email.split("@")[0];
+
+        const authBtn = document.getElementById("header-auth-btn");
+        if (authBtn) {
+            authBtn.innerText = "Log Out";
+            authBtn.onclick = async () => {
+                await supabaseClient.auth.signOut();
+                appState.user.isLoggedIn = false;
+                authBtn.innerText = "Sign In";
+                authBtn.onclick = () => navigateTo('auth-view');
+                navigateTo('home-view');
+                showToast("Logged out successfully");
+            };
+        }
+
+        showToast(type === 'signup' ? "Account created successfully!" : "Welcome back!");
+        navigateTo("method-view");
+    } catch (err) {
+        console.error("Unexpected auth exception:", err);
+        showToast("An unexpected error occurred.");
     }
-
-    // Session update
-    appState.user.isLoggedIn = true;
-    appState.user.email = data.user.email;
-    appState.user.username = data.user.email.split("@")[0];
-
-    // Header Logout handler
-    const authBtn = document.getElementById("header-auth-btn");
-    if (authBtn) {
-        authBtn.innerText = "Log Out";
-        authBtn.onclick = async () => {
-            await supabaseClient.auth.signOut();
-            appState.user.isLoggedIn = false;
-            authBtn.innerText = "Sign In";
-            authBtn.onclick = () => navigateTo('auth-view');
-            navigateTo('home-view');
-            showToast("Logged out successfully");
-        };
-    }
-
-    showToast(type === 'signup' ? "Account created successfully!" : "Welcome back!");
-    navigateTo("method-view");
 }
 
 // --- METHOD SELECTION ---
@@ -398,13 +410,13 @@ function renderLessonMap() {
 
     let pathD = "";
     nodes.forEach((node, idx) => {
-        const xPx = (node.x / 100) * container.clientWidth || (node.x * 8);
+        const xPx = (node.x / 100) * (container.clientWidth || 800);
         const yPx = (node.y / 100) * 440;
 
         if (idx === 0) {
             pathD += `M ${xPx} ${yPx}`;
         } else {
-            const prevX = (nodes[idx-1].x / 100) * container.clientWidth || (nodes[idx-1].x * 8);
+            const prevX = (nodes[idx-1].x / 100) * (container.clientWidth || 800);
             const prevY = (nodes[idx-1].y / 100) * 440;
             const cx1 = (prevX + xPx) / 2;
             pathD += ` C ${cx1} ${prevY}, ${cx1} ${yPx}, ${xPx} ${yPx}`;
