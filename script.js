@@ -23,16 +23,16 @@ const appState = {
         learningStyle: "Sentence Structure Practice",
         targetLanguages: [
             {
-                name: "Sousou",
-                origin: "Guinea, West Africa",
-                related: "Mandinka, Pular",
+                name: "French",
+                origin: "Europe, Global",
+                related: "Romance family",
                 level: "A1 Beginner"
             }
         ],
         activeTargetIndex: 0,
         privateCorpus: [
-            { id: 1, targetLang: "Sousou", knownText: "How are you doing today?", targetText: "I kene wa?", audioAttached: true, dateAdded: "2026-08-08" },
-            { id: 2, targetLang: "Sousou", knownText: "Good morning grandfather", targetText: "Inoma kene", audioAttached: false, dateAdded: "2026-08-08" }
+            { id: 1, targetLang: "French", knownText: "How are you doing today?", targetText: "Comment ça va aujourd'hui?", audioAttached: true, dateAdded: "2026-08-08" },
+            { id: 2, targetLang: "French", knownText: "Good morning grandfather", targetText: "Bonjour grand-père", audioAttached: false, dateAdded: "2026-08-08" }
         ]
     },
     // Populated dynamically from Supabase database
@@ -40,11 +40,11 @@ const appState = {
     
     // Map Node Structure for Active Target
     lessonNodes: [
-        { id: "A1.1", label: "A1: Greetings & Family", x: 15, y: 80, status: "completed", prompt: "Good morning grandfather", targetText: "Inoma kene" },
-        { id: "A1.2", label: "A1: Daily Check-in", x: 30, y: 35, status: "active", prompt: "How are you doing today?", targetText: "I kene wa?" },
-        { id: "A1.3", label: "A1: Shared Meals", x: 50, y: 70, status: "locked", prompt: "Let us eat together", targetText: "A kha donse don" },
-        { id: "A2.1", label: "A2: Expressing Gratitude", x: 70, y: 30, status: "locked", prompt: "Thank you for the meal", targetText: "I bara wolo" },
-        { id: "A2.2", label: "A2: Storytelling Roots", x: 88, y: 75, status: "locked", prompt: "Tell me a story from home", targetText: "Tariku fala n bɛ" }
+        { id: "A1.1", label: "A1: Greetings & Family", x: 15, y: 80, status: "completed", prompt: "Good morning grandfather", targetText: "Bonjour grand-père" },
+        { id: "A1.2", label: "A1: Daily Check-in", x: 30, y: 35, status: "active", prompt: "How are you doing today?", targetText: "Comment ça va aujourd'hui?" },
+        { id: "A1.3", label: "A1: Shared Meals", x: 50, y: 70, status: "locked", prompt: "Let us eat together", targetText: "mangeons ensemble" },
+        { id: "A2.1", label: "A2: Expressing Gratitude", x: 70, y: 30, status: "locked", prompt: "Thank you for the meal", targetText: "Merci pour le repas" },
+        { id: "A2.2", label: "A2: Storytelling Roots", x: 88, y: 75, status: "locked", prompt: "Tell me a story from home", targetText: "raconte-moi une histoire de chez moi" }
     ],
     activeNode: null
 };
@@ -59,9 +59,9 @@ function resetUserState() {
         learningStyle: "Sentence Structure Practice",
         targetLanguages: [
             {
-                name: "Sousou",
-                origin: "Guinea, West Africa",
-                related: "Mandinka, Pular",
+                name: "French",
+                origin: "Europe, Global",
+                related: "Romance family",
                 level: "A1 Beginner"
             }
         ],
@@ -166,7 +166,7 @@ async function fetchAvailableLanguages() {
         
         // Fallback default if database connection fails or table is empty
         appState.availableLanguages = [
-            { name: "Sousou", region: "Guinea, West Africa", flag: "🇬🇳", isCustom: false },
+            { name: "French", region: "Europe, Global", flag: "FR", isCustom: false },
             { name: "Haitian Creole", region: "Haiti, Caribbean", flag: "🇭🇹", isCustom: false }
         ];
     }
@@ -493,9 +493,9 @@ function renderSampleSentences() {
     if (!container) return;
 
     const samples = [
-        { known: "How are you doing today?", defaultTarget: "I kene wa?" },
-        { known: "Good morning grandfather", defaultTarget: "Inoma kene" },
-        { known: "Let us eat together", defaultTarget: "A kha donse don" }
+        { known: "How are you doing today?", defaultTarget: "Comment ça va aujourd'hui?" },
+        { known: "Good morning grandfather", defaultTarget: "Bonjour grand-père" },
+        { known: "Let us eat together", defaultTarget: "mangeons ensemble" }
     ];
 
     container.innerHTML = samples.map((s, i) => `
