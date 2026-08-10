@@ -143,30 +143,51 @@ function switchAuthTab(type) {
     }
 }
 
-function handleAuthSubmit(event, type) {
+async function handleAuthSubmit(event, type) {
     event.preventDefault();
+
     const emailInput = type === 'signup' ? document.getElementById("signup-email") : document.getElementById("login-email");
-    
-    if (emailInput && emailInput.value) {
-        appState.user.isLoggedIn = true;
-        appState.user.email = emailInput.value;
-        appState.user.username = emailInput.value.split("@")[0];
+    const passwordInput = type === 'signup' ? document.getElementById("signup-password") : document.getElementById("login-password");
 
-        const authBtn = document.getElementById("header-auth-btn");
-        if (authBtn) {
-            authBtn.innerText = "Log Out";
-            authBtn.onclick = () => {
-                appState.user.isLoggedIn = false;
-                authBtn.innerText = "Sign In";
-                authBtn.onclick = () => navigateTo('auth-view');
-                navigateTo('home-view');
-                showToast("Logged out successfully");
-            };
-        }
-
-        showToast(type === 'signup' ? "Account created!" : "Welcome back!");
-        navigateTo("method-view");
+    if (!emailInput || !passwordInput || !emailInput.value || !passwordInput.value) {
+        showToast("Please provide both email and password.");
+        return;
     }
+
+    const email = emailInput.value;
+    const password = passwordInput.value;
+
+    // Call Supabase based on mode
+    const { data, error } = type === 'signup' 
+        ? await supabaseClient.auth.signUp({ email, password })
+        : await supabaseClient.auth.signInWithPassword({ email, password });
+
+    if (error) {
+        showToast(`Authentication failed: ${error.message}`);
+        return;
+    }
+
+    // Session update
+    appState.user.isLoggedIn = true;
+    appState.user.email = data.user.email;
+    appState.user.username = data.user.email.split("@")[0];
+
+    // Header Logout handler
+    const authBtn = document.getElementById("header-auth-btn");
+    if (authBtn) {
+        authBtn.innerText = "Log Out";
+        authBtn.onclick = async () => {
+            await supabaseClient.auth.signOut();
+            appState.user.isLoggedIn = false;
+            authBtn.innerText = "Sign In";
+            authBtn.onclick = () => navigateTo('auth-view');
+            navigateTo('home-view');
+            showToast("Logged out successfully");
+        };
+    }
+
+    showToast(type === 'signup' ? "Account created successfully!" : "Welcome back!");
+    navigateTo("method-view");
 }
 
 // --- METHOD SELECTION ---
