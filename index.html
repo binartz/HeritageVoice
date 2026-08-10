@@ -500,6 +500,31 @@
         </div>
     </div>
 
+<!--Added to create the different lesson modals -->    
+    <div id="lesson-exercise-modal" class="modal-overlay">
+        <div class="modal-card">
+            <button class="modal-close-btn" onclick="closeModal('lesson-exercise-modal')">&times;</button>
+            
+            <div class="modal-header">
+                <span id="exercise-node-tag" class="badge-tag">A1.1</span>
+                <h3 id="ex-prompt-text">"Prompt sentence"</h3>
+            </div>
+
+            <!-- Dynamic UI Container -->
+            <div id="exercise-interactive-container">
+                <!-- JavaScript dynamically renders Flashcards, Audio UI, or Inputs here -->
+            </div>
+
+            <!-- Feedback & Actions -->
+            <div id="correction-feedback" class="feedback-box hidden"></div>
+
+            <div class="modal-footer" style="margin-top: 1.5rem;">
+                <button class="btn btn-primary" onclick="completeExerciseNode()">Complete Lesson</button>
+            </div>
+        </div>
+    </div>
+
+    
     <!-- Toast Notification Container -->
     <div id="toast" class="toast">
         <i class="fa-solid fa-circle-check"></i> <span id="toast-message">Action successful</span>
