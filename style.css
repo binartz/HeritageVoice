@@ -1316,3 +1316,51 @@ h1, h2, h3 {
     0% { height: 6px; }
     100% { height: 24px; }
 }
+
+/* Dynamic Exercise Container Styles */
+.flashcard-wrapper {
+    perspective: 1000px;
+    width: 100%;
+    height: 180px;
+    cursor: pointer;
+    margin: 1rem 0;
+}
+
+.flashcard-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    transition: transform 0.6s;
+    transform-style: preserve-3d;
+}
+
+.flashcard-wrapper.flipped .flashcard-inner {
+    transform: rotateY(180deg);
+}
+
+.flashcard-front, .flashcard-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    border: 1px solid #E2E8F0;
+    background: #F8FAFC;
+    padding: 1rem;
+}
+
+.flashcard-back {
+    background: #EFF6FF;
+    transform: rotateY(180deg);
+}
+
+.flashcard-hint {
+    font-size: 0.8rem;
+    color: #64748B;
+    margin-top: 0.5rem;
+}
