@@ -2,14 +2,18 @@
    HeritageVoice Web Application State & Logic Engine
    ========================================================================== */
 
-// --- SUPABASE CLIENT INITIALIZATION ---
+// --- 1. SUPABASE CLIENT INITIALIZATION ---
 const SUPABASE_URL = "https://fdirykbtkqnwcjpspofe.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_v7RMflMmWZJvsVXV-aRTRw_2bU3fTcg";
-const supabaseClient = (typeof supabase !== 'undefined' && supabase.createClient) 
-    ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
-    : null;
 
-// --- GLOBAL APPLICATION STATE ---
+let supabaseClient = null;
+if (typeof supabase !== 'undefined' && supabase.createClient) {
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} else {
+    console.warn("Supabase library not loaded.");
+}
+
+// --- 2. GLOBAL APPLICATION STATE ---
 const appState = {
     user: {
         isLoggedIn: false,
@@ -205,7 +209,6 @@ async function handleAuthSubmit(event, type) {
             console.warn("Supabase client offline. Proceeding with local state.");
         }
 
-        // Safely update user properties without overwriting appState.user object
         if (appState && appState.user) {
             appState.user.email = authUserEmail;
             appState.user.username = authUserEmail.split("@")[0];
