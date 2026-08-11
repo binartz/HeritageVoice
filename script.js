@@ -14,6 +14,7 @@ if (typeof supabase !== 'undefined' && supabase.createClient) {
 }
 
 const HF_TOKEN ="hf_gSbxaufuEbeoNYceHOBqdYoBrLT1QTjLjU";
+const TRANSLATION_API_KEY= "AIzaSyCVMRE1muxsrQsgm1-rNcQQl569CfIQ0ng";
 
 // Dynamic helper: resolves any language name (e.g. "Spanish") to an ISO code via API
 async function getIsoCode(languageName) {
@@ -573,26 +574,28 @@ async function translateActiveUserText(text, forcedSourceLang = null) {
     const sourceLang = forcedSourceLang || appState.user.knownLanguage || "English";
     const targetLang = activeTargetObj?.name || "English";
 
-    // Prevent API error if source and target languages match
-    if (sourceLang.toLowerCase().trim() === targetLang.toLowerCase().trim()) {
-        return text;
-    }
+    if (sourceLang.toLowerCase().trim() === targetLang.toLowerCase().trim()) return text;
+
+    const sourceCode = await getIsoCode(sourceLang);
+    const targetCode = await getIsoCode(targetLang);
 
     try {
-        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent(sourceLang)}|${encodeURIComponent(targetLang)}`;
-        
-        const response = await fetch(url);
+        const url = `https://translation.googleapis.com/language/translate/v2?key=${TRANSLATION_API_KEY}`;
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                q: text,
+                source: sourceCode,
+                target: targetCode,
+                format: "text"
+            })
+        });
+
         const data = await response.json();
-
-        // Check if API returned an internal error message string
-        const translated = data.responseData?.translatedText || text;
-        if (translated.includes("PLEASE SELECT TWO DISTINCT LANGUAGES")) {
-            return text;
-        }
-
-        return translated;
+        return data.data?.translations[0]?.translatedText || text;
     } catch (error) {
-        console.error("Translation API error:", error);
+        console.error("Google Translation API Error:", error);
         return text;
     }
 }
@@ -960,6 +963,92 @@ function renderExerciseContainer(node, activeTarget) {
                 <button class="btn btn-secondary" onclick="simulateCorrection()">Save / Correct</button>
             </div>
         `;
+    }
+}
+
+// --- AFTER (Replace Section 11 playAudioMock block with this) ---
+
+// Maps language names to Meta MMS TTS 3-letter ISO model paths
+// Routes lesson text to Sunbird native TTS & Meta MMS native African voice models
+function getTtsModelName(langName) {
+    if (!langName) return "facebook/mms-tts-eng";
+    
+    const clean = langName.trim().toLowerCase();
+
+    // Models trained on native regional speaker voices & studio recordings
+    const nativeAccentModels = {
+        // Sunbird AI Native Accent TTS Models (Uganda / East Africa)
+        "luganda": "Sunbird/tts-vits-lug",
+        "ateso": "Sunbird/tts-vits-teo",
+        "runyankole": "Sunbird/tts-vits-nyn",
+        "acholi": "Sunbird/tts-vits-ach",
+        "lugbara": "Sunbird/tts-vits-lgg",
+
+        // Meta MMS Native Regional Voice Models
+        "igbo": "facebook/mms-tts-ibo",
+        "yoruba": "facebook/mms-tts-yor",
+        "hausa": "facebook/mms-tts-hau",
+        "swahili": "facebook/mms-tts-swa",
+        "zulu": "facebook/mms-tts-zul",
+        "xhosa": "facebook/mms-tts-xho",
+        "shona": "facebook/mms-tts-sna",
+        "amharic": "facebook/mms-tts-amh",
+        "wolof": "facebook/mms-tts-wol",
+        "twi": "facebook/mms-tts-twi",
+        "lingala": "facebook/mms-tts-lin",
+        "fulani": "facebook/mms-tts-ful",
+        "oromo": "facebook/mms-tts-orm",
+        "somali": "facebook/mms-tts-som",
+        "kinyarwanda": "facebook/mms-tts-kin",
+        "chewa": "facebook/mms-tts-nya",
+        "bemba": "facebook/mms-tts-bem",
+        "tswana": "facebook/mms-tts-tsn",
+        "sotho": "facebook/mms-tts-sot"
+    };
+
+    if (nativeAccentModels[clean]) {
+        return nativeAccentModels[clean];
+    }
+
+    // Dynamic fallback for any unlisted language using 3-letter ISO prefix
+    return `facebook/mms-tts-${clean.slice(0, 3)}`;
+}
+  
+
+// Fetches audio binary from Hugging Face Inference API and plays it
+async function speakAfricanText(text, langName) {
+    if (!text) return;
+
+    const model = getTtsModelName(langName);
+    const apiToken = typeof HF_TOKEN !== "undefined" ? HF_TOKEN : "";
+
+    try {
+        const response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+            headers: {
+                "Authorization": `Bearer ${apiToken}`,
+                "Content-Type": "application/json"
+            },
+            method: "POST",
+            body: JSON.stringify({ inputs: text })
+        });
+
+        if (!response.ok) throw new Error(`TTS API failed with status ${response.status}`);
+
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        await audio.play();
+
+    } catch (err) {
+        console.warn(`Hugging Face TTS fallback triggered for ${langName}:`, err);
+
+        // Web Speech API fallback if model is warming up or token fails
+        if ("speechSynthesis" in window) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.85;
+            window.speechSynthesis.speak(utterance);
+        }
     }
 }
 
