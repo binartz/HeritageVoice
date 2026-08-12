@@ -29,7 +29,7 @@
             </nav>
 
             <div class="header-actions">
-                <button class="btn btn-outline" id="header-auth-btn" onclick="navigateTo('auth-view')">Sign In</button>
+               <button id="nav-auth-btn" class="nav-btn" onclick="handleAuthNavClick()">Sign In</button>
             </div>
         </div>
     </header>
@@ -466,40 +466,40 @@
     </div>
 
     <!-- MODAL 3: ADD AUDIO / SENTENCE MID-JOURNEY -->
-    <div id="add-data-modal" class="modal-overlay">
-        <div class="modal-card">
-            <div class="modal-header">
-                <h3>Import Target Sentence or Audio</h3>
-                <button class="modal-close" onclick="closeModal('add-data-modal')"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <form onsubmit="handleImportData(event)">
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Phrase in Known Language</label>
-                        <input type="text" id="import-known-text" class="form-input" placeholder="e.g. Good morning grandfather" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Target Language Wording / Phonetics</label>
-                        <input type="text" id="import-target-text" class="form-input" placeholder="e.g. Inoma kene" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Upload Audio Recording (Optional)</label>
-                        <div class="file-drop-zone">
-                            <i class="fa-solid fa-cloud-arrow-up"></i>
-                            <p>Drag & drop voice note or click to upload (.mp3, .wav, .m4a)</p>
-                            <input type="file" class="file-input-hidden" accept="audio/*">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline" onclick="closeModal('add-data-modal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Add to Profile Corpus</button>
-                </div>
-            </form>
+   <div id="add-data-modal" class="modal-overlay hidden" style="pointer-events: none;" onclick="event.stopPropagation()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3>Import Target Sentence or Audio</h3>
+            <button type="button" class="modal-close" onclick="cancelAddDataModal(event)"><i class="fa-solid fa-xmark"></i></button>
         </div>
+        <form id="import-data-form" onsubmit="handleImportData(event)">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="import-known-text">Phrase in Known Language</label>
+                    <input type="text" id="import-known-text" class="form-input" placeholder="e.g. Good morning grandfather" oninput="handleKnownTextAutoTranslate(this.value)" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="import-target-text">Target language translation</label>
+                    <input type="text" id="import-target-text" class="form-input" placeholder="Auto-translating or type manually..." required>
+                </div>
+
+                <div class="form-group">
+                    <label>Upload Audio Recording (Optional)</label>
+                    <div class="file-drop-zone" onclick="triggerAudioUpload(event)">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <p id="file-drop-text">Drag & drop voice note or click to upload (.mp3, .wav, .m4a)</p>
+                        <input type="file" id="import-audio-file" class="file-input-hidden" accept="audio/*" onchange="handleFileSelect(event)" style="display: none;">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="cancelAddDataModal(event)">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add to Profile Corpus</button>
+            </div>
+        </form>
     </div>
+</div>
 
     <!-- Toast Notification Container -->
     <div id="toast" class="toast">

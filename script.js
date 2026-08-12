@@ -2,7 +2,7 @@
    HeritageVoice Web Application State & Logic Engine
    ========================================================================== */
 
-// --- 1. SUPABASE CLIENT INITIALIZATION ---
+// --- 1. SUPABASE & API INITIALIZATION ---
 const SUPABASE_URL = "https://fdirykbtkqnwcjpspofe.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_v7RMflMmWZJvsVXV-aRTRw_2bU3fTcg";
 
@@ -13,78 +13,742 @@ if (typeof supabase !== 'undefined' && supabase.createClient) {
     console.warn("Supabase library not loaded.");
 }
 
-const HF_TOKEN ="hf_gSbxaufuEbeoNYceHOBqdYoBrLT1QTjLjU";
-const TRANSLATION_API_KEY= "AIzaSyCVMRE1muxsrQsgm1-rNcQQl569CfIQ0ng";
+const HF_TOKEN = "hf_gSbxaufuEbeoNYceHOBqdYoBrLT1QTjLjU";
+const TRANSLATION_API_KEY = "AIzaSyCVMRE1muxsrQsgm1-rNcQQl569CfIQ0ng";
 
-// Dynamic helper: resolves any language name (e.g. "Spanish") to an ISO code via API
+// Helper: resolves any language name to an ISO code via Google Translate API
 async function getIsoCode(languageName) {
     if (!languageName) return "en";
     const cleanName = languageName.trim().toLowerCase();
-    
-    // Quick fallback for common default
     if (cleanName === "english") return "en";
 
     try {
-        const response = await fetch("https://api.mymemory.translated.net/v2/languages");
-        const languages = await response.json();
-        
-        // Match full language name against API list
-        const match = languages.find(lang => lang.name.toLowerCase() === cleanName);
-        return match ? match.code : cleanName.slice(0, 2);
+        const response = await fetch(`https://translation.googleapis.com/language/translate/v2/languages?key=${TRANSLATION_API_KEY}&target=en`);
+        const data = await response.json();
+        const languages = data.data?.languages || [];
+        const match = languages.find(lang => lang.name && lang.name.toLowerCase() === cleanName);
+        return match ? match.language : cleanName.slice(0, 2);
     } catch (error) {
         console.error("Error fetching ISO codes:", error);
-        return cleanName.slice(0, 2); // Fallback to first two letters if fetch fails
+        return cleanName.slice(0, 2);
     }
 }
+
 // --- 2. GLOBAL APPLICATION STATE ---
 const appState = {
+    authMode: "signup",
     user: {
         isLoggedIn: false,
         email: "user@heritagevoice.org",
         username: "heritage_learner",
         knownLanguage: "English",
-        learningStyle: "Sentence Structure Practice",
+        learningStyle: "Flashcards with Pictures",
         targetLanguages: [
             {
-                name: "French",
-                origin: "Europe, Global",
-                related: "Romance family",
+                name: "Yoruba",
+                origin: "West Africa",
+                related: "Volta-Niger family",
                 level: "A1 Beginner"
             }
         ],
         activeTargetIndex: 0,
-        privateCorpus: [
-            { id: 1, targetLang: "French", knownText: "How are you doing today?", targetText: "Comment ça va aujourd'hui?", audioAttached: true, dateAdded: "2026-08-08" },
-            { id: 2, targetLang: "French", knownText: "Good morning grandfather", targetText: "Bonjour grand-père", audioAttached: false, dateAdded: "2026-08-08" }
-        ]
+        privateCorpus: []
     },
-    // Populated dynamically from Supabase database
     availableLanguages: [],
-    
-    // Map Node Structure for Active Target
     lessonNodes: [
-        { id: "A1.1", label: "A1: Greetings & Family", x: 15, y: 80, status: "completed", prompt: "Good morning grandfather", targetText: "Bonjour grand-père" },
-        { id: "A1.2", label: "A1: Daily Check-in", x: 30, y: 35, status: "active", prompt: "How are you doing today?", targetText: "Comment ça va aujourd'hui?" },
-        { id: "A1.3", label: "A1: Shared Meals", x: 50, y: 70, status: "locked", prompt: "Let us eat together", targetText: "mangeons ensemble" },
-        { id: "A2.1", label: "A2: Expressing Gratitude", x: 70, y: 30, status: "locked", prompt: "Thank you for the meal", targetText: "Merci pour le repas" },
-        { id: "A2.2", label: "A2: Storytelling Roots", x: 88, y: 75, status: "locked", prompt: "Tell me a story from home", targetText: "raconte-moi une histoire de chez moi" }
+        { id: "A1.1", label: "A1: Greetings & Family", x: 15, y: 80, status: "active", prompt: "Good morning grandfather", targetText: "" },
+        { id: "A1.2", label: "A1: Daily Check-in", x: 30, y: 35, status: "locked", prompt: "How are you doing today?", targetText: "" },
+        { id: "A1.3", label: "A1: Shared Meals", x: 50, y: 70, status: "locked", prompt: "Let us eat together", targetText: "" },
+        { id: "A2.1", label: "A2: Expressing Gratitude", x: 70, y: 30, status: "locked", prompt: "Thank you for the meal", targetText: "" },
+        { id: "A2.2", label: "A2: Storytelling Roots", x: 88, y: 75, status: "locked", prompt: "Tell me a story from home", targetText: "" }
     ],
     activeNode: null
 };
 
-// --- 3. STATE MANAGEMENT & SUPABASE SYNC HELPERS ---
+// --- 3. DYNAMIC GOOGLE TRANSLATION HELPER ---
+async function translateActiveUserText(text, forcedSourceLang = null) {
+    if (!text || !text.trim()) return "";
+
+    const activeTargetObj = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
+    const sourceLang = forcedSourceLang || appState.user.knownLanguage || "English";
+    const targetLang = activeTargetObj?.name || "Yoruba";
+
+    if (sourceLang.toLowerCase().trim() === targetLang.toLowerCase().trim()) return text;
+
+    const sourceCode = await getIsoCode(sourceLang);
+    const targetCode = await getIsoCode(targetLang);
+
+    try {
+        const url = `https://translation.googleapis.com/language/translate/v2?key=${TRANSLATION_API_KEY}`;
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                q: text,
+                source: sourceCode,
+                target: targetCode,
+                format: "text"
+            })
+        });
+
+        const data = await response.json();
+        return data.data?.translations[0]?.translatedText || text;
+    } catch (error) {
+        console.error("Translation API Error:", error);
+        return text;
+    }
+}
+
+// --- 4. PROFILE VIEW RENDERER ---
+// --- 4. PROFILE VIEW RENDERER ---
+function renderProfileView() {
+    const emailEl = document.getElementById("profile-display-email");
+    const usernameEl = document.getElementById("profile-display-username");
+    const styleEl = document.getElementById("profile-display-style");
+    const knownLangEl = document.getElementById("profile-display-known-lang");
+    const corpusContainer = document.getElementById("private-corpus-list");
+    const targetLangContainer = document.getElementById("user-target-languages-list") || document.querySelector(".target-lang-list");
+
+    if (emailEl) emailEl.innerHTML = `<i class="fa-solid fa-envelope"></i> ${appState.user.email}`;
+    if (usernameEl) usernameEl.innerText = appState.user.username;
+    if (styleEl) styleEl.innerText = appState.user.learningStyle;
+    if (knownLangEl) knownLangEl.innerText = appState.user.knownLanguage;
+
+    // Render Active Target Languages on Profile with click handlers
+    if (targetLangContainer) {
+        if (!appState.user.targetLanguages || appState.user.targetLanguages.length === 0) {
+            targetLangContainer.innerHTML = `<p class="empty-state-text">No target languages selected yet.</p>`;
+        } else {
+            targetLangContainer.innerHTML = appState.user.targetLanguages.map((lang, index) => `
+                <div class="target-lang-card ${index === appState.user.activeTargetIndex ? 'active-target' : ''}" 
+                     onclick="switchTargetAndGoToPath(${index})" 
+                     style="padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.2s;">
+                    <div>
+                        <strong style="color: #0f172a; font-size: 1.05em;">${lang.name}</strong>
+                        <div style="font-size: 0.85em; color: #64748b;">${lang.origin || 'Language'} • ${lang.level || 'A1 Beginner'}</div>
+                    </div>
+                    ${index === appState.user.activeTargetIndex ? '<span style="background: #dbeafe; color: #1e40af; font-size: 0.75em; padding: 4px 8px; border-radius: 12px; font-weight: 600;">Active</span>' : ''}
+                </div>
+            `).join("");
+        }
+    }
+
+    if (corpusContainer) {
+        if (!appState.user.privateCorpus || appState.user.privateCorpus.length === 0) {
+            corpusContainer.innerHTML = `<p class="empty-state-text" style="color: #64748b; font-style: italic; margin-top: 12px;">No saved phrases yet. Use "Import Target Sentence or Audio" to build your corpus.</p>`;
+        } else {
+            corpusContainer.innerHTML = appState.user.privateCorpus.map(item => `
+                <div class="corpus-item" style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-top: 10px; background: #f8fafc; display: flex; flex-direction: column; gap: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="color: #0f172a; font-size: 1em;">${item.knownText}</strong>
+                        <span style="font-size: 0.75em; color: #94a3b8;">${item.dateAdded || ''}</span>
+                    </div>
+                    <div style="color: #2563eb; font-weight: 600; font-size: 0.95em;">
+                        ${item.targetLang || 'Target'}: <span style="color: #1e293b; font-weight: 400;">${item.targetText}</span>
+                    </div>
+                    ${item.hasAudio && item.audioSrc ? `
+                        <div style="margin-top: 6px;">
+                            <audio controls src="${item.audioSrc}" style="width: 100%; height: 32px; border-radius: 4px;"></audio>
+                        </div>
+                    ` : item.hasAudio ? `
+                        <div style="margin-top: 4px; font-size: 0.8em; color: #059669; display: flex; align-items: center; gap: 6px;">
+                            <i class="fa-solid fa-file-audio"></i> <span>Audio Attached (${item.audioFileName || 'Voice Note'})</span>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join("");
+        }
+    }
+} 
+
+function switchTargetAndGoToPath(index) {
+    if (index >= 0 && index < appState.user.targetLanguages.length) {
+        appState.user.activeTargetIndex = index;
+        
+        // Update global language labels and save state
+        if (typeof updateLanguageLabels === "function") updateLanguageLabels();
+        saveStateToStorage();
+        saveUserLanguagesToSupabase();
+
+        // Render updated map nodes if applicable
+        if (typeof renderLessonMap === "function") renderLessonMap();
+
+        // Navigate directly to the active learning path view
+        navigateTo("lessons-view"); 
+        
+        showToast(`Switched active language to ${appState.user.targetLanguages[index].name}`);
+    }
+}
+
+// --- 5. ADD CUSTOM SENTENCE / AUDIO MODAL & TRANSLATION LOGIC ---
+// Open Modal without triggering canvas click listeners
+function openAddDataModal(e) {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    const modal = document.getElementById("add-data-modal");
+    if (!modal) return;
+
+    const form = document.getElementById("import-data-form");
+    if (form) form.reset();
+
+    const dropText = document.getElementById("file-drop-text");
+    if (dropText) dropText.innerText = "Drag & drop voice note or click to upload (.mp3, .wav, .m4a)";
+
+    modal.classList.remove("hidden");
+    modal.style.display = "flex";
+    modal.style.pointerEvents = "auto";
+    modal.style.opacity = "1";
+}
+
+// Close and return safely without firing map events
+function cancelAddDataModal(e) {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    const modal = document.getElementById("add-data-modal");
+    if (!modal) return;
+
+    const form = document.getElementById("import-data-form");
+    if (form) form.reset();
+
+    modal.style.opacity = "0";
+    modal.style.pointerEvents = "none";
+    setTimeout(() => {
+        modal.style.display = "none";
+        modal.classList.add("hidden");
+    }, 150);
+}
+
+// Trigger file input dialog cleanly
+function triggerAudioUpload(e) {
+    e.stopPropagation();
+    const fileInput = document.getElementById("import-audio-file");
+    if (fileInput) fileInput.click();
+}
+
+// Handle file selection UI text
+function handleFileSelect(e) {
+    e.stopPropagation();
+    const file = e.target.files[0];
+    const dropText = document.getElementById("file-drop-text");
+    if (file && dropText) {
+        dropText.innerText = `Selected: ${file.name}`;
+    }
+}
+
+// Real-time Translation Debounce
+let translateTimeout = null;
+function handleKnownTextAutoTranslate(val) {
+    const targetInput = document.getElementById("import-target-text");
+    if (!targetInput) return;
+
+    clearTimeout(translateTimeout);
+    if (!val.trim()) {
+        targetInput.value = "";
+        return;
+    }
+
+    translateTimeout = setTimeout(async () => {
+        const userKnownLang = appState.user.knownLanguage || "English";
+        try {
+            const translated = await translateActiveUserText(val.trim(), userKnownLang);
+            if (translated) targetInput.value = translated;
+        } catch (err) {
+            console.warn("Auto-translation error:", err);
+        }
+    }, 400);
+}
+
+// Save data to Profile Corpus, update database, and navigate back
+async function handleImportData(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const knownInput = document.getElementById("import-known-text");
+    const targetInput = document.getElementById("import-target-text");
+    const fileInput = document.getElementById("import-audio-file");
+
+    const knownText = knownInput ? knownInput.value.trim() : "";
+    const targetText = targetInput ? targetInput.value.trim() : "";
+    const hasAudio = fileInput && fileInput.files && fileInput.files.length > 0;
+
+    if (!knownText || !targetText) {
+        showToast("Please fill in both phrases.");
+        return;
+    }
+
+    const userKnownLang = appState.user.knownLanguage || "English";
+    const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
+    const targetLangName = activeTarget ? activeTarget.name : "Target";
+
+    // Add to Private Corpus (Profile)
+    if (!appState.user.privateCorpus) appState.user.privateCorpus = [];
+    appState.user.privateCorpus.unshift({
+        id: Date.now(),
+        knownLang: userKnownLang,
+        targetLang: targetLangName,
+        knownText: knownText,
+        targetText: targetText,
+        hasAudio: hasAudio,
+        audioFileName: hasAudio ? fileInput.files[0].name : null,
+        dateAdded: new Date().toISOString().split("T")[0]
+    });
+
+    // Add node to Lesson Map
+    const nodeIndex = appState.lessonNodes.length + 1;
+    appState.lessonNodes.push({
+        id: `Custom.${nodeIndex}`,
+        label: `Custom: ${knownText.slice(0, 14)}...`,
+        x: Math.floor(Math.random() * 60) + 20,
+        y: Math.floor(Math.random() * 50) + 25,
+        status: "active",
+        prompt: knownText,
+        targetText: targetText
+    });
+
+    // Sync state to storage and backend database
+    saveStateToStorage();
+    saveUserLanguagesToSupabase();
+
+    // Reset and close modal
+    cancelAddDataModal(e);
+
+    // Re-render UI views
+    if (typeof renderProfileView === "function") renderProfileView();
+    if (typeof renderLessonMap === "function") renderLessonMap();
+
+    showToast("Phrase and translation saved to Profile!");
+}
+
+
+ 
+
+async function handleAddCustomSentence() {
+    const input = document.getElementById("add-modal-sentence");
+    const sentence = input ? input.value.trim() : "";
+
+    if (!sentence) {
+        showToast("Please enter a sentence or record audio first.");
+        return;
+    }
+
+    const userKnownLang = appState.user.knownLanguage || "English";
+    const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
+    const targetLangName = activeTarget ? activeTarget.name : "Target";
+
+    showToast("Translating sentence...");
+
+    let translated = sentence;
+    try {
+        translated = await Promise.race([
+            translateActiveUserText(sentence, userKnownLang),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Translation timeout")), 2500))
+        ]);
+    } catch (err) {
+        console.warn("Translation fallback applied:", err.message);
+        translated = sentence;
+    }
+
+    if (!appState.user.privateCorpus) appState.user.privateCorpus = [];
+    appState.user.privateCorpus.unshift({
+        id: Date.now(),
+        knownLang: userKnownLang,
+        targetLang: targetLangName,
+        knownText: sentence,
+        targetText: translated,
+        audioAttached: (typeof isRecording !== "undefined" && isRecording) || false,
+        dateAdded: new Date().toISOString().split("T")[0]
+    });
+
+    const nodeIndex = appState.lessonNodes.length + 1;
+    const newNode = {
+        id: `Custom.${nodeIndex}`,
+        label: `Custom: ${sentence.slice(0, 14)}...`,
+        x: Math.floor(Math.random() * 60) + 20,
+        y: Math.floor(Math.random() * 50) + 25,
+        status: "active",
+        prompt: sentence,
+        targetText: translated
+    };
+    appState.lessonNodes.push(newNode);
+
+    saveStateToStorage();
+    saveUserLanguagesToSupabase();
+    closeModal("add-data-modal");
+
+    if (typeof renderProfileView === "function") renderProfileView();
+    if (typeof renderLessonMap === "function") renderLessonMap();
+
+    showToast("Translated and saved! Added to profile & active lesson path.");
+}
+
+// --- 6. EXERCISE MODAL & TARGET LANGUAGE MATCHING ---
+async function openExerciseModal(node) {
+    if (!node) return;
+    appState.activeNode = node;
+
+    if (node.status === "locked") {
+        showToast("This lesson node is locked! Complete previous nodes first.");
+        return;
+    }
+
+    let modal = document.getElementById("exercise-modal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "exercise-modal";
+        modal.style.cssText = `
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 10000; opacity: 0; transition: opacity 0.2s ease;
+        `;
+        document.body.appendChild(modal);
+    }
+
+    const userKnown = appState.user.knownLanguage || "English";
+    const activeTargetObj = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
+    const targetLangName = activeTargetObj ? activeTargetObj.name : "Target";
+    const learningStyle = (appState.user.learningStyle || "").toLowerCase();
+
+    const displayedPrompt = node.prompt || "";
+    let dynamicTargetText = node.targetText || "";
+
+    if (displayedPrompt && !dynamicTargetText) {
+        try {
+            dynamicTargetText = await Promise.race([
+                translateActiveUserText(displayedPrompt, userKnown),
+                new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2000))
+            ]);
+        } catch (e) {
+            dynamicTargetText = displayedPrompt;
+        }
+    }
+
+    // Save flashcard state globally for playback
+    window.currentModalFlashcard = {
+        front: displayedPrompt,
+        back: dynamicTargetText || displayedPrompt,
+        isFlipped: false,
+        knownLang: userKnown,
+        targetLang: targetLangName
+    };
+
+    let exerciseBodyHTML = "";
+
+    if (learningStyle.includes("flashcard")) {
+        exerciseBodyHTML = `
+            <div style="text-align: center; margin: 20px 0;">
+                <div id="flashcard-card" style="border: 2px solid #cbd5e1; border-radius: 12px; padding: 36px 16px; background: #f8fafc; cursor: pointer; transition: all 0.2s ease;" onclick="flipFlashcard()">
+                    <span id="flashcard-side-label" style="font-size: 0.8em; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 8px;">Front (${userKnown})</span>
+                    <h2 id="flashcard-text" style="margin: 0; color: #0f172a; font-size: 1.4em;">"${displayedPrompt}"</h2>
+                </div>
+
+                <!-- Flashcard Action Buttons -->
+                <div style="display: flex; justify-content: center; gap: 12px; margin-top: 14px; align-items: center;">
+                    <button type="button" onclick="flipFlashcard()" style="background: none; border: none; color: #2563eb; cursor: pointer; font-weight: 600; font-size: 0.9em;">
+                        <i class="fa-solid fa-rotate"></i> Flip Card
+                    </button>
+                    <button type="button" onclick="playCurrentModalAudio()" style="background: #e0f2fe; border: 1px solid #bae6fd; color: #0284c7; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9em; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-volume-high"></i> Listen Pronunciation
+                    </button>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+                <button type="button" onclick="closeExerciseModal()" style="padding: 8px 16px; background: #e2e8f0; border: none; border-radius: 6px; cursor: pointer;">Close</button>
+                <button type="button" onclick="submitExerciseAnswer()" style="padding: 8px 16px; background: #16a34a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Got It!</button>
+            </div>
+        `;
+    } else {
+        exerciseBodyHTML = `
+            <p id="exercise-prompt" style="font-size: 1.1em; color: #334155; margin: 16px 0;">Translate to ${targetLangName}: <strong>"${displayedPrompt}"</strong></p>
+            <div style="margin-bottom: 12px;">
+                <button type="button" onclick="playCurrentModalAudio()" style="background: #e0f2fe; border: 1px solid #bae6fd; color: #0284c7; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85em; display: inline-flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-volume-high"></i> Listen Target Phrase
+                </button>
+            </div>
+            <input type="text" id="exercise-user-input" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 16px;" placeholder="Type target translation...">
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                <button type="button" onclick="closeExerciseModal()" style="padding: 8px 16px; background: #e2e8f0; border: none; border-radius: 6px; cursor: pointer;">Close</button>
+                <button type="button" onclick="submitExerciseAnswer()" style="padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Submit</button>
+            </div>
+        `;
+    }
+
+    modal.innerHTML = `
+        <div style="background: #fff; width: 90%; max-width: 480px; padding: 24px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
+                <h3 style="margin: 0; color: #0f172a;">${node.label || "Lesson Exercise"}</h3>
+                <span style="font-size: 0.75em; background: #eff6ff; color: #1d4ed8; padding: 4px 8px; border-radius: 12px; font-weight: 600; text-transform: capitalize;">
+                    ${targetLangName}
+                </span>
+            </div>
+            ${exerciseBodyHTML}
+        </div>
+    `;
+
+    modal.style.display = "flex";
+    requestAnimationFrame(() => modal.style.opacity = "1");
+}
+
+function renderFlashcardUI(node) {
+    const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex];
+    const langName = activeTarget ? activeTarget.name : "Target";
+    
+    const targetText = node.targetText || node.prompt || "";
+    const cleanText = targetText.replace(/'/g, "\\'"); // Escape quotes for inline click handler
+
+    return `
+        <div class="flashcard-card" style="text-align: center; padding: 20px; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 0.85em; color: #64748b; margin-bottom: 8px;">Target Wording</div>
+            <h2 style="font-size: 1.8em; color: #0f172a; margin: 0 0 16px 0;">${targetText}</h2>
+            
+            <button type="button" class="btn btn-secondary" 
+                    onclick="playLessonAudio('${cleanText}', '${node.audioSrc || ''}', '${langName}')" 
+                    style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; cursor: pointer;">
+                <i class="fa-solid fa-volume-high"></i> Listen Pronunciation
+            </button>
+        </div>
+    `;
+}
+function flipFlashcard() {
+    if (!window.currentModalFlashcard) return;
+    const card = window.currentModalFlashcard;
+    const textEl = document.getElementById("flashcard-text");
+    const labelEl = document.getElementById("flashcard-side-label");
+    const cardEl = document.getElementById("flashcard-card");
+
+    if (!textEl || !cardEl || !labelEl) return;
+
+    card.isFlipped = !card.isFlipped;
+    if (card.isFlipped) {
+        labelEl.innerText = `Back (${card.targetLang})`;
+        textEl.innerText = card.back;
+        cardEl.style.background = "#eff6ff";
+        cardEl.style.borderColor = "#93c5fd";
+    } else {
+        labelEl.innerText = `Front (${card.knownLang})`;
+        textEl.innerText = `"${card.front}"`;
+        cardEl.style.background = "#f8fafc";
+        cardEl.style.borderColor = "#cbd5e1";
+    }
+}
+
+function closeExerciseModal() {
+    const modal = document.getElementById("exercise-modal");
+    if (modal) {
+        modal.style.opacity = "0";
+        setTimeout(() => modal.style.display = "none", 200);
+    }
+    appState.activeNode = null;
+}
+// Triggers MMS-TTS for the active flashcard/modal phrase
+function playCurrentModalAudio() {
+    if (!window.currentModalFlashcard) return;
+    const card = window.currentModalFlashcard;
+    const targetText = card.back || card.front;
+    playLessonAudio(targetText, appState.activeNode?.audioSrc || "", card.targetLang);
+}
+
+// Handler for HTML modal audio button (lesson-exercise-modal in index.html)
+function playAudioMock() {
+    if (window.currentModalFlashcard) {
+        playCurrentModalAudio();
+    } else if (appState.activeNode) {
+        const activeTargetObj = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
+        const targetLangName = activeTargetObj ? activeTargetObj.name : "Target";
+        playLessonAudio(appState.activeNode.targetText || appState.activeNode.prompt, appState.activeNode.audioSrc || "", targetLangName);
+    }
+}
+
+function submitExerciseAnswer() {
+    if (appState.activeNode) {
+        appState.activeNode.status = "completed";
+
+        const currentIndex = appState.lessonNodes.findIndex(n => n.id === appState.activeNode.id);
+        if (currentIndex !== -1 && currentIndex + 1 < appState.lessonNodes.length) {
+            if (appState.lessonNodes[currentIndex + 1].status === "locked") {
+                appState.lessonNodes[currentIndex + 1].status = "active";
+            }
+        }
+        
+        saveStateToStorage();
+        saveUserLanguagesToSupabase();
+        if (typeof renderLessonMap === "function") renderLessonMap();
+    }
+    showToast("Exercise completed! Next node unlocked.");
+    closeExerciseModal();
+}
+
+// --- 7. AUDIO RECORDING & SUNBIRD ASR ---
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+
+async function triggerRecordMock(btn) {
+    const inputGroup = btn.closest(".sample-input-group");
+    const targetInput = inputGroup ? (inputGroup.querySelector(".sample-target-input") || inputGroup.parentElement?.querySelector("input")) : null;
+
+    if (!isRecording) {
+        try {
+            audioChunks = [];
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) audioChunks.push(event.data);
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+
+            btn.innerHTML = `<i class="fa-solid fa-circle-dot" style="color:red"></i> Stop Recording`;
+            btn.style.background = "#FEE2E2";
+            btn.style.color = "#991B1B";
+            showToast("Recording... Speak clearly.");
+        } catch (err) {
+            console.error("Microphone access error:", err);
+            showToast("Microphone access denied or unavailable.");
+        }
+    } else {
+        isRecording = false;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Transcribing...`;
+        btn.style.background = "#FEF3C7";
+        btn.style.color = "#92400E";
+
+        mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+            const transcription = await sendToSunbirdASR(audioBlob);
+
+            if (transcription) {
+                if (targetInput) targetInput.value = transcription;
+                const modalInput = document.getElementById("add-modal-sentence");
+                if (modalInput) modalInput.value = transcription;
+                showToast("Audio transcribed successfully!");
+            } else {
+                showToast("Audio captured.");
+            }
+
+            btn.innerHTML = `<i class="fa-solid fa-microphone"></i> Record Audio Sentence`;
+            btn.style.background = "#f1f5f9";
+            btn.style.color = "#334155";
+        };
+
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    }
+}
+// Map common language names to ISO 639-3 codes without hardcoding exhaustive lists
+function getLanguageIsoCode(langName) {
+    if (!langName) return "yor";
+    const name = langName.toLowerCase().trim();
+    
+    // Dynamic match for active target languages
+    if (name.includes("yoruba")) return "yor";
+    if (name.includes("sousou") || name.includes("susu")) return "sus";
+    if (name.includes("swahili")) return "swh";
+    if (name.includes("hausa")) return "hau";
+    if (name.includes("igbo")) return "ibo";
+
+    // Fallback: use current active target's isoCode property if present
+    const activeTarget = appState.user.targetLanguages?.[appState.user.activeTargetIndex];
+    return activeTarget?.isoCode || "yor";
+}
+
+// Fetch native audio blob from Hugging Face MMS-TTS
+async function fetchMmsTtsAudio(textToSpeak, langName) {
+    const isoCode = getLanguageIsoCode(langName);
+    const modelUrl = `https://api-inference.huggingface.co/models/facebook/mms-tts-${isoCode}`;
+
+    try {
+        const response = await fetch(modelUrl, {
+            headers: {
+                "Authorization": `Bearer ${HF_TOKEN}`,
+                "Content-Type": "application/json"
+            },
+            method: "POST",
+            body: JSON.stringify({ inputs: textToSpeak })
+        });
+
+        if (!response.ok) {
+            throw new Error(`MMS-TTS API returned status ${response.status}`);
+        }
+
+        const audioBlob = await response.blob();
+        return URL.createObjectURL(audioBlob);
+    } catch (error) {
+        console.warn("MMS-TTS API offline or failed:", error);
+        return null;
+    }
+}
+
+// Global Audio Player for Lessons and Flashcards
+async function playLessonAudio(text, customAudioSrc, langName) {
+    // 1. Play custom uploaded audio note if present
+    if (customAudioSrc && customAudioSrc !== "") {
+        try {
+            const audio = new Audio(customAudioSrc);
+            await audio.play();
+            return;
+        } catch (err) {
+            console.warn("Custom audio playback failed, generating TTS:", err);
+        }
+    }
+
+    // 2. Fetch native audio from Hugging Face MMS-TTS
+    showToast("Loading pronunciation...");
+    const generatedAudioUrl = await fetchMmsTtsAudio(text, langName);
+
+    if (generatedAudioUrl) {
+        const audio = new Audio(generatedAudioUrl);
+        audio.play();
+    } else {
+        // 3. Fallback to browser TTS if API is reaching cold start or unavailable
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.85;
+            window.speechSynthesis.speak(utterance);
+        } else {
+            showToast("Audio currently unavailable.");
+        }
+    }
+}
+async function sendToSunbirdASR(audioBlob) {
+    const modelUrl = "https://api-inference.huggingface.co/models/Sunbird/asr-whisper-51-african-languages";
+
+    try {
+        const response = await fetch(modelUrl, {
+            headers: {
+                "Authorization": `Bearer ${HF_TOKEN}`,
+                "Content-Type": "audio/wav"
+            },
+            method: "POST",
+            body: audioBlob
+        });
+
+        const result = await response.json();
+        return result.text || "";
+    } catch (error) {
+        console.error("Sunbird ASR API Error:", error);
+        return "";
+    }
+}
+
+// --- 8. STATE PERSISTENCE & SUPABASE HELPERS ---
 function resetUserState() {
     appState.user = {
         isLoggedIn: false,
         email: "user@heritagevoice.org",
         username: "heritage_learner",
         knownLanguage: "English",
-        learningStyle: "Sentence Structure Practice",
+        learningStyle: "Flashcards with Pictures",
         targetLanguages: [
             {
-                name: "French",
-                origin: "Europe, Global",
-                related: "Romance family",
+                name: "Yoruba",
+                origin: "West Africa",
+                related: "Volta-Niger family",
                 level: "A1 Beginner"
             }
         ],
@@ -94,17 +758,36 @@ function resetUserState() {
     try {
         localStorage.removeItem('heritage_voice_state');
     } catch (e) {
-        console.warn("LocalStorage access restricted:", e);
+        console.warn("LocalStorage access error:", e);
     }
 }
 
 function saveStateToStorage() {
     try {
-        if (appState && appState.user) {
-            localStorage.setItem('heritage_voice_state', JSON.stringify(appState.user));
+        const payload = {
+            user: appState.user,
+            lessonNodes: appState.lessonNodes
+        };
+        localStorage.setItem('heritage_voice_state', JSON.stringify(payload));
+    } catch (e) {
+        console.warn("LocalStorage save error:", e);
+    }
+}
+
+function restoreStateFromStorage() {
+    const raw = localStorage.getItem('heritage_voice_state');
+    if (!raw) return;
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (parsed.user) {
+            appState.user = { ...appState.user, ...parsed.user };
+        }
+        if (parsed.lessonNodes && Array.isArray(parsed.lessonNodes)) {
+            appState.lessonNodes = parsed.lessonNodes;
         }
     } catch (e) {
-        console.warn("LocalStorage access restricted:", e);
+        console.warn("Error parsing local state:", e);
     }
 }
 
@@ -115,17 +798,17 @@ async function saveUserLanguagesToSupabase() {
         const { data: { user } } = await supabaseClient.auth.getUser();
         if (!user) return;
 
-        const { error } = await supabaseClient
+        await supabaseClient
             .from('profiles')
             .update({
                 target_languages: appState.user.targetLanguages,
-                active_target_index: appState.user.activeTargetIndex
+                active_target_index: appState.user.activeTargetIndex,
+                learning_style: appState.user.learningStyle,
+                lesson_nodes: appState.lessonNodes
             })
             .eq('id', user.id);
-
-        if (error) throw error;
     } catch (err) {
-        console.warn("Could not sync target languages to Supabase:", err.message);
+        console.warn("Could not sync to Supabase:", err.message);
     }
 }
 
@@ -145,26 +828,28 @@ async function fetchUserProfile(userId) {
             appState.user.email = profile.email;
             appState.user.username = profile.username || profile.email.split("@")[0];
             appState.user.knownLanguage = profile.known_language || "English";
-            appState.user.learningStyle = profile.learning_style || "Sentence Structure Practice";
-            
-            // Restore saved target languages from database
+            appState.user.learningStyle = profile.learning_style || "Flashcards with Pictures";
+
             if (profile.target_languages && profile.target_languages.length > 0) {
                 appState.user.targetLanguages = profile.target_languages;
                 appState.user.activeTargetIndex = profile.active_target_index || 0;
             }
+            // FIX: Restore saved Lesson Nodes if available
+            if (profile.lesson_nodes && Array.isArray(profile.lesson_nodes) && profile.lesson_nodes.length > 0) {
+                appState.lessonNodes = profile.lesson_nodes;
+            }
 
             appState.user.isLoggedIn = true;
-
+            saveStateToStorage();
             renderProfileView();
             updateLanguageLabels();
+            updateAuthButtonUI();
         }
     } catch (err) {
-        console.warn("Could not fetch user profile from Supabase:", err.message);
+        console.warn("Could not fetch user profile:", err.message);
     }
 }
 
-// --- 4. DATABASE FETCH: AVAILABLE LANGUAGES ---
-// --- FETCH & DEDUPLICATE LANGUAGES FROM SUPABASE ---
 async function fetchAvailableLanguages() {
     try {
         if (!supabaseClient) throw new Error("Supabase SDK not loaded");
@@ -197,81 +882,153 @@ async function fetchAvailableLanguages() {
             appState.availableLanguages = uniqueLanguages;
         }
     } catch (err) {
-        console.warn("Supabase fetch fallback:", err.message);
-
-        // Fallback default if database connection fails or table is empty
         appState.availableLanguages = [
-            { name: "French", region: "Europe, Global", flag: "🇫🇷", isCustom: false },
-            { name: "Haitian Creole", region: "Haiti, Caribbean", flag: "🇭🇹", isCustom: false }
+            { name: "Yoruba", region: "West Africa", flag: "🇳🇬", isCustom: false },
+            { name: "Sousou", region: "Guinea / West Africa", flag: "🇬🇳", isCustom: false }
         ];
     }
 }
 
-// --- DOM INITIALIZATION WITH PERSISTENCE & AUTO-REFRESH ---
-document.addEventListener("DOMContentLoaded", async () => {
-    // Restore saved user state from LocalStorage if available
-    const savedState = localStorage.getItem('heritage_voice_state');
-    if (savedState) {
-        try {
-            const parsed = JSON.parse(savedState);
-            if (parsed && parsed.knownLanguage) appState.user.knownLanguage = parsed.knownLanguage;
-            if (parsed && parsed.learningStyle) appState.user.learningStyle = parsed.learningStyle;
-        } catch (e) {
-            console.warn("Could not parse saved user state:", e);
+// --- 9. AUTHENTICATION & SESSION MANAGEMENT ---
+async function handleAuthSubmit(event) {
+    if (event) event.preventDefault();
+
+    const emailInput = document.getElementById("auth-email") || document.querySelector("input[type='email']");
+    const passwordInput = document.getElementById("auth-password") || document.querySelector("input[type='password']");
+
+    const email = emailInput ? emailInput.value.trim() : "";
+    const password = passwordInput ? passwordInput.value.trim() : "";
+
+    if (!email || !password) {
+        showToast("Please enter both email and password.");
+        return;
+    }
+
+    const mode = appState.authMode || "signup";
+    showToast(mode === "login" ? "Logging in..." : "Creating account...");
+
+    try {
+        if (supabaseClient) {
+            let authResponse;
+            if (mode === "login") {
+                authResponse = await supabaseClient.auth.signInWithPassword({ email, password });
+            } else {
+                authResponse = await supabaseClient.auth.signUp({ email, password });
+            }
+
+            if (authResponse.error) throw authResponse.error;
+
+            const user = authResponse.data.user;
+            if (user) {
+                appState.user.isLoggedIn = true;
+                appState.user.email = user.email;
+                appState.user.username = user.user_metadata?.username || user.email.split("@")[0];
+                await fetchUserProfile(user.id);
+            }
+        } else {
+            appState.user.isLoggedIn = true;
+            appState.user.email = email;
+            appState.user.username = email.split("@")[0];
         }
+
+        saveStateToStorage();
+        updateLanguageLabels();
+        renderProfileView();
+        updateAuthButtonUI();
+        showToast(`Welcome back, ${appState.user.username}!`);
+        navigateTo("languages-view");
+    } catch (err) {
+        console.error("Auth Error:", err);
+        showToast(`Auth Failed: ${err.message || "Invalid credentials"}`);
+    }
+}
+
+// Dynamic UI update for Nav Auth Button
+function updateAuthButtonUI() {
+    const authBtn = document.getElementById("nav-auth-btn");
+    if (!authBtn) return;
+
+    if (appState.user.isLoggedIn) {
+        authBtn.innerText = "Sign Out";
+    } else {
+        authBtn.innerText = "Sign In";
+    }
+}
+
+// Click Handler for Nav Auth Button
+async function handleAuthNavClick() {
+    if (appState.user.isLoggedIn) {
+        // Handle Logout
+        if (supabaseClient) {
+            await supabaseClient.auth.signOut();
+        }
+        resetUserState();
+        updateAuthButtonUI();
+        showToast("Signed out successfully.");
+        navigateTo("auth-view");
+    } else {
+        // Navigate to Login/Signup View
+        navigateTo("auth-view");
+    }
+}
+// --- 10. DOM INITIALIZATION ---
+document.addEventListener("DOMContentLoaded", async () => {
+    restoreStateFromStorage();
+
+    if (supabaseClient) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session?.user) {
+            appState.user.isLoggedIn = true;
+            appState.user.email = session.user.email;
+            await fetchUserProfile(session.user.id);
+        }
+    }
+
+    const authForm = document.getElementById("auth-form") || document.querySelector("form");
+    if (authForm) {
+        authForm.addEventListener("submit", handleAuthSubmit);
     }
 
     await fetchAvailableLanguages();
-
     renderLanguageGrid();
     renderProfileView();
-    await renderSampleSentences();
+    updateLanguageLabels();
+    updateAuthButtonUI();
 
-    // Spoken Language Selector Listener
-   const spokenSelect = document.getElementById("spoken-language-select");
-if (spokenSelect) {
-    spokenSelect.value = appState.user.knownLanguage || "English";
+    if (appState.user.isLoggedIn) {
+        navigateTo("languages-view");
+    }
 
-    spokenSelect.addEventListener("change", async (e) => {
-        const selectedLanguage = e.target.value;
-        appState.user.knownLanguage = selectedLanguage;
+    const spokenSelect = document.getElementById("spoken-language-select");
+    if (spokenSelect) {
+        spokenSelect.value = appState.user.knownLanguage || "English";
 
-        saveStateToStorage();
-        saveUserLanguagesToSupabase();
-        updateLanguageLabels();
+        spokenSelect.addEventListener("change", async (e) => {
+            const selectedLanguage = e.target.value;
+            appState.user.knownLanguage = selectedLanguage;
 
-        if (typeof showToast === "function") {
+            saveStateToStorage();
+            saveUserLanguagesToSupabase();
+            updateLanguageLabels();
+
             showToast(`Translating interface to ${selectedLanguage}...`);
-        }
-
-        await translateWebsiteUI();
-        await renderSampleSentences();
-    });
-}
-
-    // Run initial UI translation on page load if knownLanguage is not English
-    if (appState.user.knownLanguage && appState.user.knownLanguage.toLowerCase() !== "english") {
-        await translateWebsiteUI();
+            await renderSampleSentences();
+        });
     }
 });
 
-// --- 6. NAVIGATION LOGIC ---
+// --- 11. NAVIGATION & INTERFACE HELPERS ---
 async function navigateTo(viewId) {
     const views = document.querySelectorAll(".view-section");
     views.forEach(v => v.classList.remove("active"));
 
     const targetView = document.getElementById(viewId);
-    if (targetView) {
-        targetView.classList.add("active");
-    }
+    if (targetView) targetView.classList.add("active");
 
     const navBtns = document.querySelectorAll(".nav-btn");
     navBtns.forEach(btn => {
-        if (btn.getAttribute("data-target") === viewId) {
-            btn.classList.add("active");
-        } else {
-            btn.classList.remove("active");
-        }
+        if (btn.getAttribute("data-target") === viewId) btn.classList.add("active");
+        else btn.classList.remove("active");
     });
 
     if (viewId === "lessons-view") {
@@ -280,163 +1037,23 @@ async function navigateTo(viewId) {
         renderProfileView();
     }
 
-    // Automatically translate whichever view section was just opened
-    if (appState.user.knownLanguage && appState.user.knownLanguage.toLowerCase() !== "english") {
-        if (typeof translateWebsiteUI === "function") {
-            await translateWebsiteUI();
-        }
-    }
-
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// --- 7. AUTHENTICATION FLOW ---
-function switchAuthTab(type) {
-    const tabs = document.querySelectorAll(".auth-tab");
-    const signupForm = document.getElementById("signup-form");
-    const loginForm = document.getElementById("login-form");
-
-    if (!signupForm || !loginForm) return;
-
-    if (type === 'signup') {
-        if (tabs[0]) tabs[0].classList.add("active");
-        if (tabs[1]) tabs[1].classList.remove("active");
-        signupForm.classList.remove("hidden");
-        loginForm.classList.add("hidden");
-    } else {
-        if (tabs[1]) tabs[1].classList.add("active");
-        if (tabs[0]) tabs[0].classList.remove("active");
-        loginForm.classList.remove("hidden");
-        signupForm.classList.add("hidden");
-    }
-}
-
-async function handleAuthSubmit(event, type) {
-    if (event && typeof event.preventDefault === 'function') {
-        event.preventDefault();
-    }
-
-    const emailInput = type === 'signup' ? document.getElementById("signup-email") : document.getElementById("login-email");
-    const passwordInput = type === 'signup' ? document.getElementById("signup-password") : document.getElementById("login-password");
-
-    if (!emailInput || !passwordInput) {
-        if (typeof showToast === 'function') showToast(`HTML Error: Missing input fields for ${type}`);
-        console.error("Missing input fields in DOM.");
-        return;
-    }
-
-    if (!emailInput.value.trim() || !passwordInput.value.trim()) {
-        if (typeof showToast === 'function') showToast("Please fill in both email and password.");
-        return;
-    }
-
-    const email = emailInput.value.trim();
-    const password = passwordInput.value.trim();
-
-    try {
-        let authUserEmail = email;
-        let authUserId = null;
-
-        if (supabaseClient && supabaseClient.auth) {
-            const { data, error } = type === 'signup' 
-                ? await supabaseClient.auth.signUp({ email, password })
-                : await supabaseClient.auth.signInWithPassword({ email, password });
-
-            if (error) {
-                if (typeof showToast === 'function') showToast(`Auth error: ${error.message}`);
-                console.error("Supabase auth error:", error);
-                return;
-            }
-
-            if (data?.user) {
-                authUserEmail = data.user.email;
-                authUserId = data.user.id;
-            }
-
-            // Save/Upsert extra profile state on Sign Up
-            if (type === 'signup' && data?.user) {
-                const { error: profileError } = await supabaseClient
-                    .from('profiles')
-                    .upsert([{
-                        id: data.user.id,
-                        email: data.user.email,
-                        username: data.user.email.split("@")[0],
-                        learning_style: appState.user.learningStyle,
-                        known_language: appState.user.knownLanguage,
-                        target_languages: appState.user.targetLanguages,
-                        active_target_index: appState.user.activeTargetIndex
-                    }]);
-
-                if (profileError) {
-                    console.warn("Could not save profile preferences:", profileError.message);
-                }
-            }
-
-            // Hydrate state from database
-            if (authUserId) {
-                await fetchUserProfile(authUserId);
-            }
-        } else {
-            console.warn("Supabase client offline. Proceeding with local state.");
-            appState.user.email = authUserEmail;
-            appState.user.username = authUserEmail.split("@")[0];
-            appState.user.isLoggedIn = true;
-        }
-
-        const authBtn = document.getElementById("header-auth-btn");
-        const profileDisplay = document.getElementById("profile-display-email");
-        
-        if (profileDisplay) {
-            profileDisplay.innerHTML = `<i class="fa-solid fa-envelope"></i> ${appState.user.email}`;
-        }
-
-        if (authBtn) {
-            authBtn.innerText = "Log Out";
-            authBtn.onclick = async () => {
-                if (supabaseClient && supabaseClient.auth) {
-                    await supabaseClient.auth.signOut();
-                }
-                
-                // Clear state & update UI back to defaults
-                resetUserState();
-                renderProfileView();
-                updateLanguageLabels();
-
-                authBtn.innerText = "Sign In";
-                authBtn.onclick = () => navigateTo('auth-view');
-                
-                navigateTo('home-view');
-                if (typeof showToast === 'function') showToast("Logged out successfully");
-            };
-        }
-
-        saveStateToStorage();
-        if (typeof showToast === 'function') showToast(type === 'signup' ? "Account created successfully!" : "Welcome back!");
-        
-        navigateTo("method-view");
-
-    } catch (err) {
-        console.error("Unexpected auth exception:", err);
-        navigateTo("method-view");
-    }
-}
-
-// --- 8. METHOD SELECTION ---
 function selectMethod(element) {
     document.querySelectorAll(".method-option").forEach(opt => opt.classList.remove("selected"));
     element.classList.add("selected");
-    const val = element.getAttribute("data-value");
-    appState.user.learningStyle = val;
+    appState.user.learningStyle = element.getAttribute("data-value");
 }
 
 function saveMethodAndNext() {
     saveStateToStorage();
     saveUserLanguagesToSupabase();
-    showToast(`Learning method saved: ${appState.user.learningStyle}`);
+    renderProfileView();
+    showToast(`Learning method set: ${appState.user.learningStyle}`);
     navigateTo("languages-view");
 }
 
-// --- 9. LANGUAGES SELECTION & CREATION ---
 function renderLanguageGrid() {
     const grid = document.getElementById("language-grid");
     if (!grid) return;
@@ -474,7 +1091,9 @@ function selectTargetLanguage(lang, cardElement) {
     }
 
     updateLanguageLabels();
+    saveStateToStorage();
     saveUserLanguagesToSupabase();
+    renderProfileView();
     navigateTo("sample-data-view");
 }
 
@@ -485,123 +1104,35 @@ function openCustomLangModal() {
 
 function closeModal(modalId) {
     const modal = document.getElementById(modalId);
-    if (modal) modal.classList.remove("active");
-}
-
-async function handleCreateCustomLanguage(event) {
-    event.preventDefault();
-    const name = document.getElementById("custom-lang-name")?.value;
-    const origin = document.getElementById("custom-lang-origin")?.value;
-    const related = document.getElementById("custom-lang-related")?.value || "Custom Family";
-    const level = document.getElementById("custom-lang-level")?.value || "A1 Beginner";
-
-    if (!name || !origin) return;
-
-    const newLangObj = {
-        name: name,
-        origin: origin,
-        is_custom: true
-    };
-
-    try {
-        if (supabaseClient) {
-            const { error } = await supabaseClient
-                .from('languages')
-                .insert([newLangObj]);
-            if (error) throw error;
-        }
-
-        appState.user.targetLanguages.push({ name, origin, related, level });
-        appState.user.activeTargetIndex = appState.user.targetLanguages.length - 1;
-        
-        appState.availableLanguages.unshift({
-            name,
-            region: origin,
-            flag: "🌍",
-            isCustom: true
-        });
-
-        renderLanguageGrid();
-        closeModal("custom-lang-modal");
-        updateLanguageLabels();
-        await saveUserLanguagesToSupabase();
-        
-        showToast(`Added ${name} to database & profile!`);
-        navigateTo("sample-data-view");
-    } catch (err) {
-        console.error("Error saving custom language:", err.message);
-        showToast("Error adding custom language to database.");
+    if (modal) {
+        modal.classList.remove("active");
+        modal.style.opacity = "0";
+        setTimeout(() => modal.style.display = "none", 200);
     }
 }
 
 function updateLanguageLabels() {
     const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
     if (!activeTarget) return;
-    
+
+    const userKnown = appState.user.knownLanguage || "English";
+
     const targetNameSpan = document.getElementById("sample-target-name");
     if (targetNameSpan) targetNameSpan.innerText = activeTarget.name;
 
     const knownLangLabel = document.getElementById("known-lang-label");
-    if (knownLangLabel) knownLangLabel.innerText = appState.user.knownLanguage;
+    if (knownLangLabel) knownLangLabel.innerText = userKnown;
 
     const mapTitle = document.getElementById("map-target-title");
-    if (mapTitle) mapTitle.innerText = `${activeTarget.name} Learning Path`;
+    if (mapTitle) mapTitle.innerText = `${userKnown} → ${activeTarget.name} Path`;
 
     const targetBadge = document.getElementById("current-target-badge");
-    if (targetBadge) targetBadge.innerHTML = `<i class="fa-solid fa-language"></i> Target: ${activeTarget.name}`;
+    if (targetBadge) targetBadge.innerHTML = `<i class="fa-solid fa-language"></i> ${userKnown} → ${activeTarget.name}`;
 
-    const levelTag = document.getElementById("current-level-tag");
-    if (levelTag) levelTag.innerText = activeTarget.level || "A1 Beginner";
-
-    const synthDesc = document.getElementById("synthesis-desc");
-    if (synthDesc) {
-        synthDesc.innerText = `Ingesting cross-lingual similarities from ${activeTarget.related || 'related languages'} to generate low-latency recall modules for ${activeTarget.name}.`;
-    }
-
-        // At the end of updateLanguageLabels(), append this line:
-    if (typeof renderSampleSentences === 'function') {
-        renderSampleSentences();
-    }
+    if (typeof renderSampleSentences === "function") renderSampleSentences();
+    if (typeof renderLessonMap === "function") renderLessonMap();
 }
 
-// --- NEW API TRANSLATION HELPER ---
-async function translateActiveUserText(text, forcedSourceLang = null) {
-    if (!text || !text.trim()) return "";
-
-    const activeTargetObj = appState.user.targetLanguages[appState.user.activeTargetIndex] 
-                           || appState.user.targetLanguages[0];
-
-    const sourceLang = forcedSourceLang || appState.user.knownLanguage || "English";
-    const targetLang = activeTargetObj?.name || "English";
-
-    if (sourceLang.toLowerCase().trim() === targetLang.toLowerCase().trim()) return text;
-
-    const sourceCode = await getIsoCode(sourceLang);
-    const targetCode = await getIsoCode(targetLang);
-
-    try {
-        const url = `https://translation.googleapis.com/language/translate/v2?key=${TRANSLATION_API_KEY}`;
-        const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                q: text,
-                source: sourceCode,
-                target: targetCode,
-                format: "text"
-            })
-        });
-
-        const data = await response.json();
-        return data.data?.translations[0]?.translatedText || text;
-    } catch (error) {
-        console.error("Google Translation API Error:", error);
-        return text;
-    }
-}
-
-// --- 10. SAMPLE DATA & DIAGNOSTIC ---
-// --- SAMPLE DATA & DIAGNOSTIC ---
 async function renderSampleSentences() {
     const container = document.getElementById("sample-sentences-container");
     if (!container) return;
@@ -610,202 +1141,42 @@ async function renderSampleSentences() {
     const targetName = activeTarget ? activeTarget.name : "Target Language";
     const userKnown = appState.user.knownLanguage || "English";
 
-    // Base diagnostic sentences in English
     const baseEnglishSamples = [
         "How are you doing today?",
         "Good morning grandfather",
         "Let us eat together"
     ];
 
-    // Fetch ISO codes dynamically from API without listing them manually
-    const knownCode = await getIsoCode(userKnown);
-    const targetCode = await getIsoCode(targetName);
-
-    // Initial skeleton UI render
     container.innerHTML = baseEnglishSamples.map((known, i) => `
         <div class="sample-item">
             <div class="sample-item-header">
                 <span class="sample-known-text" id="sample-known-label-${i}">${userKnown}: "${known}"</span>
-                <span class="small-text"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Diagnostic Pair #${i + 1}</span>
+                <span class="small-text"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Pair #${i + 1}</span>
             </div>
             <div class="sample-input-group">
-                <input type="text" id="sample-input-${i}" class="form-input sample-target-input" placeholder="Translating to ${targetName}..." value="">
+                <input type="text" id="sample-input-${i}" class="form-input sample-target-input" placeholder="Translating to ${targetName}...">
                 <button class="sample-audio-btn" onclick="triggerRecordMock(this)"><i class="fa-solid fa-microphone"></i> Record Audio</button>
             </div>
         </div>
     `).join("");
 
-    // Process translations asynchronously
     for (let i = 0; i < baseEnglishSamples.length; i++) {
         const englishText = baseEnglishSamples[i];
-        let knownLangPrompt = englishText;
+        const targetTranslation = await translateActiveUserText(englishText, "English");
 
-        // 1. Translate English prompt -> User's Known Language
-        if (knownCode !== "en") {
-            try {
-                const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(englishText)}&langpair=en|${knownCode}`);
-                const data = await res.json();
-                if (data.responseData?.translatedText && !data.responseData.translatedText.includes("PLEASE SELECT")) {
-                    knownLangPrompt = data.responseData.translatedText;
-                }
-            } catch (e) {
-                console.error("Error translating to known language:", e);
-            }
-        }
-
-        // Update card label with translated prompt
-        const labelEl = document.getElementById(`sample-known-label-${i}`);
-        if (labelEl) {
-            labelEl.innerText = `${userKnown}: "${knownLangPrompt}"`;
-        }
-
-        // 2. Translate Known Language prompt -> Target Language
-        let targetTranslation = "";
-        if (knownCode === targetCode) {
-            targetTranslation = knownLangPrompt;
-        } else {
-            try {
-                const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(knownLangPrompt)}&langpair=${knownCode}|${targetCode}`);
-                const data = await res.json();
-                if (data.responseData?.translatedText && !data.responseData.translatedText.includes("PLEASE SELECT")) {
-                    targetTranslation = data.responseData.translatedText;
-                }
-            } catch (e) {
-                console.error("Error translating to target language:", e);
-            }
-        }
-
-        // Insert target translation into input box
         const inputEl = document.getElementById(`sample-input-${i}`);
         if (inputEl) {
             inputEl.value = targetTranslation;
-            inputEl.placeholder = `Type ${targetName} spelling/phonetics...`;
         }
     }
 }
-
- 
-
-// --- 10. SAMPLE DATA & DIAGNOSTIC ---
-
-// Global media recorder variables
-let mediaRecorder = null;
-let audioChunks = [];
-let isRecording = false;
-
-// Replaces triggerRecordMock to capture live audio & transcribe via Sunbird Whisper API
-async function triggerRecordMock(btn) {
-    const inputGroup = btn.closest(".sample-input-group");
-    const targetInput = inputGroup ? inputGroup.querySelector(".sample-target-input") : null;
-
-    if (!isRecording) {
-        // --- START RECORDING ---
-        try {
-            audioChunks = [];
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) audioChunks.push(event.data);
-            };
-
-            mediaRecorder.start();
-            isRecording = true;
-
-            btn.innerHTML = `<i class="fa-solid fa-circle-dot" style="color:red"></i> Stop & Transcribe`;
-            btn.style.background = "#FEE2E2";
-            btn.style.color = "#991B1B";
-            showToast("Recording started... Speak into your microphone.");
-        } catch (err) {
-            console.error("Microphone access denied or error:", err);
-            showToast("Error accessing microphone.");
-        }
-    } else {
-        // --- STOP RECORDING & TRANSCRIBE ---
-        isRecording = false;
-        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Transcribing...`;
-        btn.style.background = "#FEF3C7";
-        btn.style.color = "#92400E";
-
-        mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
-            
-            // Send binary audio to Sunbird ASR model
-            const transcription = await sendToSunbirdASR(audioBlob);
-
-            if (transcription && targetInput) {
-                targetInput.value = transcription;
-                showToast("Speech transcribed successfully!");
-            } else {
-                showToast("Transcription failed or returned empty text.");
-            }
-
-            btn.innerHTML = `<i class="fa-solid fa-check"></i> Record Audio`;
-            btn.style.background = "#D1FAE5";
-            btn.style.color = "#065F46";
-        };
-
-        mediaRecorder.stop();
-        // Stop all microphone tracks to release mic hardware
-        mediaRecorder.stream.getTracks().forEach(track => track.stop());
-    }
-}
-
-// Function to call Hugging Face API with audio binary
-async function sendToSunbirdASR(audioBlob) {
-    const modelUrl = "https://api-inference.huggingface.co/models/Sunbird/asr-whisper-51-african-languages";
-
-    try {
-        const response = await fetch(modelUrl, {
-            headers: {
-                "Authorization": `Bearer ${HF_TOKEN}`,
-                "Content-Type": "audio/wav"
-            },
-            method: "POST",
-            body: audioBlob
-        });
-
-        const result = await response.json();
-        return result.text || "";
-    } catch (error) {
-        console.error("Sunbird ASR API Error:", error);
-        return "";
-    }
-}
-
-
-async function translateAndAddPhrase() {
-    const input = document.getElementById("custom-known-phrase");
-    if (!input || !input.value.trim()) return;
-
-    const knownText = input.value.trim();
-    const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] 
-                          || appState.user.targetLanguages[0];
-
-    showToast("Translating phrase...");
-    const translatedText = await translateActiveUserText(knownText);
-
-    appState.user.privateCorpus.unshift({
-        id: Date.now(),
-        targetLang: activeTarget ? activeTarget.name : "Target",
-        knownText: knownText,
-        targetText: translatedText,
-        audioAttached: false,
-        dateAdded: new Date().toISOString().split("T")[0]
-    });
-
-    input.value = "";
-    showToast("Phrase translated & saved to your private profile corpus!");
-    renderProfileView();
-}
-
 
 function generateLessonMapAndProceed() {
-    showToast("Synthesizing learning path and active recall nodes...");
+    showToast("Generating custom lesson path...");
     navigateTo("lessons-view");
 }
 
-// --- 11. LESSON MAP & EXERCISE MODAL ---
+// --- 12. LESSON MAP RENDERER ---
 function renderLessonMap() {
     const container = document.getElementById("map-nodes-container");
     const svgCanvas = document.getElementById("map-svg-canvas");
@@ -824,8 +1195,8 @@ function renderLessonMap() {
         if (idx === 0) {
             pathD += `M ${xPx} ${yPx}`;
         } else {
-            const prevX = (nodes[idx-1].x / 100) * (container.clientWidth || 800);
-            const prevY = (nodes[idx-1].y / 100) * 440;
+            const prevX = (nodes[idx - 1].x / 100) * (container.clientWidth || 800);
+            const prevY = (nodes[idx - 1].y / 100) * 440;
             const cx1 = (prevX + xPx) / 2;
             pathD += ` C ${cx1} ${prevY}, ${cx1} ${yPx}, ${xPx} ${yPx}`;
         }
@@ -852,546 +1223,68 @@ function renderLessonMap() {
             </div>
             <span class="node-label">${node.label}</span>
         `;
-
         container.appendChild(nodeEl);
     });
 }
-//updated exercise modal to actually show the users learning style
-async function openExerciseModal(node) {
-    appState.activeNode = node;
-    const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
-    
-    // Grabs whatever language the user chose from state dynamically
-    const userKnownLanguage = appState.user.knownLanguage || "English";
-    const targetLanguageName = activeTarget ? activeTarget.name : "Target";
 
-    // 1. Update UI Labels dynamically
-    const tag = document.getElementById("exercise-node-tag");
-    if (tag) tag.innerText = `${node.id} (${appState.user.learningStyle})`;
-
-    document.querySelectorAll(".user-known-lang-text").forEach(el => el.innerText = userKnownLanguage);
-    document.querySelectorAll(".target-lang-text").forEach(el => el.innerText = targetLanguageName);
-
-    // 2. Translate base prompt from English into the USER'S CHOSEN KNOWN LANGUAGE
-    let displayPrompt = node.prompt;
-    if (userKnownLanguage.toLowerCase() !== "english") {
-        try {
-            const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(node.prompt)}&langpair=English|${encodeURIComponent(userKnownLanguage)}`;
-            const res = await fetch(url);
-            const data = await res.json();
-            if (data.responseData?.translatedText) {
-                displayPrompt = data.responseData.translatedText;
-            }
-        } catch (e) {
-            console.error("Error translating prompt to user's known language:", e);
-        }
-    }
-
-    const promptEl = document.getElementById("ex-prompt-text");
-    if (promptEl) promptEl.innerText = `"${displayPrompt}"`;
-
-    // 3. Translate base prompt into target learning language (e.g., Arabic)
-    if (typeof translateActiveUserText === "function") {
-        node.targetText = await translateActiveUserText(node.prompt);
-    }
-
-    // 4. Render and display modal
-    renderExerciseContainer(node, activeTarget);
-
-    const feedback = document.getElementById("correction-feedback");
-    if (feedback) feedback.classList.add("hidden");
-
-    const modal = document.getElementById("lesson-exercise-modal");
-    if (modal) modal.classList.add("active");
-}
-
-function renderExerciseContainer(node, activeTarget) {
-    const container = document.getElementById("exercise-interactive-container");
-    if (!container) return;
-
-    const style = (appState.user.learningStyle || "").toLowerCase();
-
-    if (style.includes("flashcard")) {
-        container.innerHTML = `
-            <div class="flashcard-wrapper" onclick="this.classList.toggle('flipped')">
-                <div class="flashcard-inner">
-                    <div class="flashcard-front">
-                        <span class="small-text">${appState.user.knownLanguage}</span>
-                        <h3>${node.prompt}</h3>
-                        <p class="flashcard-hint"><i class="fa-solid fa-rotate"></i> Click to flip</p>
-                    </div>
-                    <div class="flashcard-back">
-                        <span class="small-text">${activeTarget ? activeTarget.name : "Target"}</span>
-                        <h3>${node.targetText}</h3>
-                        <button class="sample-audio-btn" onclick="event.stopPropagation(); playAudioMock();">
-                            <i class="fa-solid fa-volume-high"></i> Listen
-                        </button>
-                    </div>
-                </div>
-            </div>
+// --- 13. TOAST NOTIFICATION UTILITY ---
+function showToast(message) {
+    let toastContainer = document.getElementById("toast-container");
+    if (!toastContainer) {
+        toastContainer = document.createElement("div");
+        toastContainer.id = "toast-container";
+        toastContainer.style.cssText = `
+            position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 8px; pointer-events: none;
         `;
-    } else if (style.includes("audio") || style.includes("oral")) {
-        container.innerHTML = `
-            <div class="audio-exercise-box">
-                <p>Listen to the pronunciation and repeat:</p>
-                <button class="sample-audio-btn large" onclick="playAudioMock()">
-                    <i class="fa-solid fa-play" id="play-icon"></i> Play Pronunciation
-                </button>
-                <div class="waveform-visualizer"></div>
-                <div class="sample-input-group" style="margin-top: 1rem;">
-                    <button class="sample-audio-btn" onclick="triggerRecordMock(this)">
-                        <i class="fa-solid fa-microphone"></i> Record Your Voice
-                    </button>
-                </div>
-            </div>
-        `;
-    } else if (style.includes("quiz") || style.includes("choice")) {
-        container.innerHTML = `
-            <div class="quiz-container" style="text-align: center; margin: 1rem 0;">
-                <p class="small-text">Select the correct translation for: <strong>"${node.prompt}"</strong></p>
-                <div class="quiz-options" style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem;">
-                    <button class="btn btn-secondary" onclick="simulateCorrection()">${node.targetText}</button>
-                    <button class="btn btn-secondary" onclick="showToast('Try again!')">Option B</button>
-                </div>
-            </div>
-        `;
-    } else {
-        // Default: Sentence Structure Practice / Text Input
-        container.innerHTML = `
-            <div class="sample-input-group">
-                <input type="text" id="ex-user-input" class="form-input" value="${node.targetText}" placeholder="Type target language translation...">
-                <button class="btn btn-secondary" onclick="simulateCorrection()">Save / Correct</button>
-            </div>
-        `;
-    }
-}
-
-// --- AFTER (Replace Section 11 playAudioMock block with this) ---
-
-// Maps language names to Meta MMS TTS 3-letter ISO model paths
-// Routes lesson text to Sunbird native TTS & Meta MMS native African voice models
-function getTtsModelName(langName) {
-    if (!langName) return "facebook/mms-tts-eng";
-    
-    const clean = langName.trim().toLowerCase();
-
-    // Models trained on native regional speaker voices & studio recordings
-    const nativeAccentModels = {
-        // Sunbird AI Native Accent TTS Models (Uganda / East Africa)
-        "luganda": "Sunbird/tts-vits-lug",
-        "ateso": "Sunbird/tts-vits-teo",
-        "runyankole": "Sunbird/tts-vits-nyn",
-        "acholi": "Sunbird/tts-vits-ach",
-        "lugbara": "Sunbird/tts-vits-lgg",
-
-        // Meta MMS Native Regional Voice Models
-        "igbo": "facebook/mms-tts-ibo",
-        "yoruba": "facebook/mms-tts-yor",
-        "hausa": "facebook/mms-tts-hau",
-        "swahili": "facebook/mms-tts-swa",
-        "zulu": "facebook/mms-tts-zul",
-        "xhosa": "facebook/mms-tts-xho",
-        "shona": "facebook/mms-tts-sna",
-        "amharic": "facebook/mms-tts-amh",
-        "wolof": "facebook/mms-tts-wol",
-        "twi": "facebook/mms-tts-twi",
-        "lingala": "facebook/mms-tts-lin",
-        "fulani": "facebook/mms-tts-ful",
-        "oromo": "facebook/mms-tts-orm",
-        "somali": "facebook/mms-tts-som",
-        "kinyarwanda": "facebook/mms-tts-kin",
-        "chewa": "facebook/mms-tts-nya",
-        "bemba": "facebook/mms-tts-bem",
-        "tswana": "facebook/mms-tts-tsn",
-        "sotho": "facebook/mms-tts-sot"
-    };
-
-    if (nativeAccentModels[clean]) {
-        return nativeAccentModels[clean];
+        document.body.appendChild(toastContainer);
     }
 
-    // Dynamic fallback for any unlisted language using 3-letter ISO prefix
-    return `facebook/mms-tts-${clean.slice(0, 3)}`;
-}
-  
+    const toast = document.createElement("div");
+    toast.innerText = message;
+    toast.style.cssText = `
+        background: #1e293b; color: #ffffff; padding: 12px 20px;
+        border-radius: 8px; font-size: 14px; font-family: inherit;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); opacity: 0;
+        transform: translateY(10px); transition: all 0.25s ease; pointer-events: auto;
+    `;
 
-// Fetches audio binary from Hugging Face Inference API and plays it
-async function speakAfricanText(text, langName) {
-    if (!text) return;
+    toastContainer.appendChild(toast);
 
-    const model = getTtsModelName(langName);
-    const apiToken = typeof HF_TOKEN !== "undefined" ? HF_TOKEN : "";
-
-    try {
-        const response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
-            headers: {
-                "Authorization": `Bearer ${apiToken}`,
-                "Content-Type": "application/json"
-            },
-            method: "POST",
-            body: JSON.stringify({ inputs: text })
-        });
-
-        if (!response.ok) throw new Error(`TTS API failed with status ${response.status}`);
-
-        const audioBlob = await response.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        await audio.play();
-
-    } catch (err) {
-        console.warn(`Hugging Face TTS fallback triggered for ${langName}:`, err);
-
-        // Web Speech API fallback if model is warming up or token fails
-        if ("speechSynthesis" in window) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 0.85;
-            window.speechSynthesis.speak(utterance);
-        }
-    }
-}
-
-// Updated handler: Animates visualizer and triggers live spoken audio
-// --- 11. LESSON TTS AUDIO GENERATION ---
-
-// Maps target African & global languages to Meta MMS TTS model paths on Hugging Face
-function getTtsModelName(langName) {
-    if (!langName) return "facebook/mms-tts-eng";
-    
-    const clean = langName.trim().toLowerCase();
-
-    const mmsCodeMap = {
-        // West Africa
-        "igbo": "ibo",
-        "yoruba": "yor",
-        "hausa": "hau",
-        "twi": "twi",
-        "ewe": "ewe",
-        "ga": "gaa",
-        "dagbani": "dag",
-        "wolof": "wol",
-        "bambara": "bam",
-        "fulani": "ful",
-        "fulfulde": "fuv",
-        "kanuri": "kau",
-        "fon": "fon",
-        "mossi": "mos",
-
-        // East & Central Africa
-        "swahili": "swa",
-        "amharic": "amh",
-        "tigrinya": "tir",
-        "oromo": "orm",
-        "somali": "som",
-        "luganda": "lug",
-        "acholi": "ach",
-        "ateso": "teo",
-        "lugbara": "lgg",
-        "runyankole": "nyn",
-        "kinyarwanda": "kin",
-        "kirundi": "run",
-        "luo": "luo",
-        "kikuyu": "kik",
-        "kamba": "kam",
-        "lingala": "lin",
-        "sango": "sag",
-        "dinka": "din",
-        "nuer": "nus",
-
-        // Southern Africa
-        "zulu": "zul",
-        "xhosa": "xho",
-        "shona": "sna",
-        "chewa": "nya",
-        "nyanja": "nya",
-        "bemba": "bem",
-        "tonga": "toi",
-        "lozi": "loz",
-        "tswana": "tsn",
-        "sotho": "sot",
-        "tsonga": "tso",
-        "venda": "ven",
-        "swati": "ssw",
-        "afrikaans": "afr",
-        "malagasy": "mlg",
-
-        // Global / Fallbacks
-        "french": "fra",
-        "english": "eng",
-        "arabic": "ara",
-        "portuguese": "por"
-    };
-
-    const iso3Code = mmsCodeMap[clean] || clean.slice(0, 3);
-    return `facebook/mms-tts-${iso3Code}`;
-}
-
-// Speaks target translation using Hugging Face MMS TTS API
-async function speakAfricanText(text, langName) {
-    if (!text) return;
-
-    const model = getTtsModelName(langName);
-
-    try {
-        const response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
-            headers: {
-                "Authorization": `Bearer ${HF_TOKEN}`,
-                "Content-Type": "application/json"
-            },
-            method: "POST",
-            body: JSON.stringify({ inputs: text })
-        });
-
-        if (!response.ok) throw new Error(`TTS API failed with status ${response.status}`);
-
-        const audioBlob = await response.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        await audio.play();
-
-    } catch (err) {
-        console.warn(`Hugging Face TTS fallback triggered for ${langName}:`, err);
-
-        // Fallback to native browser speech synthesis
-        if ("speechSynthesis" in window) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 0.85;
-            window.speechSynthesis.speak(utterance);
-        }
-    }
-}
-
-// Updated audio player: animates UI and speaks active node text
-function playAudioMock() {
-    if (!appState.activeNode) return;
-
-    const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] 
-                          || appState.user.targetLanguages[0];
-    const targetLangName = activeTarget ? activeTarget.name : "Igbo";
-    const targetTextToSpeak = appState.activeNode.targetText || "";
-
-    const visualizer = document.querySelector(".waveform-visualizer");
-    const icon = document.getElementById("play-icon");
-    if (visualizer) visualizer.classList.add("playing");
-    if (icon) icon.className = "fa-solid fa-pause";
-
-    // Play spoken translation
-    speakAfricanText(targetTextToSpeak, targetLangName);
+    requestAnimationFrame(() => {
+        toast.style.opacity = "1";
+        toast.style.transform = "translateY(0)";
+    });
 
     setTimeout(() => {
-        if (visualizer) visualizer.classList.remove("playing");
-        if (icon) icon.className = "fa-solid fa-play";
+        toast.style.opacity = "0";
+        toast.style.transform = "translateY(10px)";
+        setTimeout(() => toast.remove(), 250);
     }, 3000);
 }
 
-function simulateCorrection() {
-    const input = document.getElementById("ex-user-input");
-    const feedback = document.getElementById("correction-feedback");
+// --- 14. AUTH TAB SWITCHER ---
+window.switchAuthTab = function(mode) {
+    const signUpTab = document.getElementById("tab-signup") || document.querySelector('[onclick*="signup"]');
+    const logInTab = document.getElementById("tab-login") || document.querySelector('[onclick*="login"]');
+    const formTitle = document.getElementById("auth-form-title") || document.querySelector("h2");
+    const submitBtn = document.getElementById("auth-submit-btn") || document.querySelector("button[type='submit']") || document.querySelector(".auth-submit-btn");
 
-    if (input && input.value) {
-        if (appState.activeNode) {
-            appState.activeNode.targetText = input.value;
-        }
+    if (mode === 'login') {
+        if (signUpTab) signUpTab.classList.remove("active");
+        if (logInTab) logInTab.classList.add("active");
 
-        const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
-        appState.user.privateCorpus.unshift({
-            id: Date.now(),
-            targetLang: activeTarget ? activeTarget.name : "Target",
-            knownText: appState.activeNode ? appState.activeNode.prompt : "Correction",
-            targetText: input.value + " (User Corrected)",
-            audioAttached: true,
-            dateAdded: new Date().toISOString().split("T")[0]
-        });
+        if (formTitle) formTitle.innerText = "Welcome Back";
+        if (submitBtn) submitBtn.innerHTML = `Log In <i class="fa-solid fa-arrow-right"></i>`;
+        
+        appState.authMode = "login";
+    } else {
+        if (logInTab) logInTab.classList.remove("active");
+        if (signUpTab) signUpTab.classList.add("active");
 
-        if (feedback) {
-            feedback.innerText = "✓ Translation updated! Saved to your private profile corpus.";
-            feedback.classList.remove("hidden");
-        }
-        showToast("Translation correction saved");
+        if (formTitle) formTitle.innerText = "Create an Account";
+        if (submitBtn) submitBtn.innerHTML = `Continue to Learning Setup <i class="fa-solid fa-arrow-right"></i>`;
+
+        appState.authMode = "signup";
     }
-}
-
-async function addInLessonWord() {
-    const nativeInput = document.getElementById("in-lesson-native-word");
-    if (!nativeInput || !nativeInput.value.trim()) return;
-
-    const word = nativeInput.value.trim();
-    const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] 
-                          || appState.user.targetLanguages[0];
-
-    showToast("Translating word...");
-    const translatedWord = await translateActiveUserText(word);
-
-    appState.user.privateCorpus.unshift({
-        id: Date.now(),
-        targetLang: activeTarget ? activeTarget.name : "Target",
-        knownText: word,
-        targetText: translatedWord,
-        audioAttached: false,
-        dateAdded: new Date().toISOString().split("T")[0]
-    });
-
-    nativeInput.value = "";
-    showToast(`Translated "${word}" → "${translatedWord}" & saved to Profile!`);
-    renderProfileView();
-}
-
-function completeExerciseNode() {
-    if (appState.activeNode) {
-        appState.activeNode.status = "completed";
-        const currIdx = appState.lessonNodes.findIndex(n => n.id === appState.activeNode.id);
-        if (currIdx >= 0 && currIdx + 1 < appState.lessonNodes.length) {
-            appState.lessonNodes[currIdx + 1].status = "active";
-        }
-    }
-    closeModal("lesson-exercise-modal");
-    renderLessonMap();
-    showToast("Exercise completed!");
-}
-
-function openAddDataModal() {
-    const modal = document.getElementById("add-data-modal");
-    if (modal) modal.classList.add("active");
-}
-
-function handleImportData(event) {
-    event.preventDefault();
-    const known = document.getElementById("import-known-text")?.value;
-    const target = document.getElementById("import-target-text")?.value;
-    const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
-
-    appState.user.privateCorpus.unshift({
-        id: Date.now(),
-        targetLang: activeTarget ? activeTarget.name : "Target",
-        knownText: known,
-        targetText: target,
-        audioAttached: true,
-        dateAdded: new Date().toISOString().split("T")[0]
-    });
-
-    closeModal("add-data-modal");
-    showToast("Imported sentence & audio snippet to private profile!");
-}
-
-// --- 12. PROFILE & SETTINGS RENDER ---
-function renderProfileView() {
-    const user = appState.user;
-
-    const uName = document.getElementById("profile-username");
-    if (uName) uName.innerText = user.username;
-
-    const uEmail = document.getElementById("profile-display-email");
-    if (uEmail) uEmail.innerHTML = `<i class="fa-solid fa-envelope"></i> ${user.email}`;
-
-    const uStyle = document.getElementById("profile-learning-style-badge");
-    if (uStyle) uStyle.innerText = `Learning Style: ${user.learningStyle}`;
-
-    const targetsList = document.getElementById("user-target-languages-list");
-    if (targetsList) {
-        targetsList.innerHTML = user.targetLanguages.map(t => `
-            <div class="corpus-item" style="display:flex; justify-content:space-between; align-items:center;">
-                <div>
-                    <strong>${t.name}</strong> <small>(${t.origin})</small>
-                    <div class="small-text">Related: ${t.related || 'N/A'}</div>
-                </div>
-                <span class="badge-tag">${t.level}</span>
-            </div>
-        `).join("");
-    }
-
-    const corpusList = document.getElementById("private-corpus-list");
-    if (corpusList) {
-        if (!user.privateCorpus || user.privateCorpus.length === 0) {
-            corpusList.innerHTML = `<p class="small-text">No custom sentences added yet.</p>`;
-        } else {
-            corpusList.innerHTML = user.privateCorpus.map(item => `
-                <div class="corpus-item">
-                    <div style="display:flex; justify-content:space-between;">
-                        <span class="corpus-item-target">${item.targetLang}: "${item.targetText}"</span>
-                        <small class="small-text">${item.dateAdded}</small>
-                    </div>
-                    <div class="small-text">${user.knownLanguage} prompt: "${item.knownText}" ${item.audioAttached ? '• <i class="fa-solid fa-volume-high"></i> Audio Attached' : ''}</div>
-                </div>
-            `).join("");
-        }
-    }
-}
-
-function handleUpdateEmail(e) {
-    e.preventDefault();
-    const newEmail = document.getElementById("update-email-input")?.value;
-    if (newEmail) {
-        appState.user.email = newEmail;
-        renderProfileView();
-        showToast("Email address updated!");
-        document.getElementById("update-email-input").value = "";
-    }
-}
-
-function handleUpdatePassword(e) {
-    e.preventDefault();
-    showToast("Password updated successfully!");
-    e.target.reset();
-}
-
-// --- 13. UTILITY: TOAST NOTIFICATIONS ---
-function showToast(msg) {
-    const toast = document.getElementById("toast");
-    const toastMsg = document.getElementById("toast-message");
-    if (toast && toastMsg) {
-        toastMsg.innerText = msg;
-        toast.classList.add("show");
-        setTimeout(() => {
-            toast.classList.remove("show");
-        }, 3000);
-    }
-}
-
-async function translateWebsiteUI() {
-    const targetKnownLang = appState.user.knownLanguage;
-    if (!targetKnownLang || targetKnownLang.toLowerCase() === "english") return;
-
-    // Gather translatable text nodes
-    const selector = "h1, h2, h3, h4, h5, p, label, button, .sample-known-text, .node-label";
-    const elements = document.querySelectorAll(selector);
-    const textNodes = [];
-
-    elements.forEach(el => {
-        if (["INPUT", "TEXTAREA", "SELECT", "SCRIPT", "STYLE"].includes(el.tagName)) return;
-
-        Array.from(el.childNodes).forEach(node => {
-            if (node.nodeType === Node.TEXT_NODE && node.nodeValue.trim().length > 0) {
-                if (!node.datasetOriginal) {
-                    node.datasetOriginal = node.nodeValue.trim();
-                }
-                textNodes.push(node);
-            }
-        });
-    });
-
-    if (textNodes.length === 0) return;
-
-    // Combine all UI text into a single query separated by newlines to bypass rate limits
-    const combinedText = textNodes.map(n => n.datasetOriginal).join("\n");
-
-    try {
-        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(combinedText)}&langpair=English|${encodeURIComponent(targetKnownLang)}`;
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.responseData?.translatedText) {
-            const translatedArray = data.responseData.translatedText.split("\n");
-            
-            // Re-assign translated values back to text nodes
-            textNodes.forEach((node, index) => {
-                if (translatedArray[index]) {
-                    node.nodeValue = translatedArray[index];
-                }
-            });
-        }
-    } catch (err) {
-        console.error("Batch UI Translation error:", err);
-    }
-}
+};
