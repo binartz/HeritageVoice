@@ -43,6 +43,7 @@ const appState = {
         username: "heritage_learner",
         knownLanguage: "English",
         learningStyle: "Flashcards with Pictures",
+        customDictionaries: {},
         targetLanguages: [
             {
                 name: "Yoruba",
@@ -66,6 +67,10 @@ const appState = {
 };
 
 // --- 3. DYNAMIC GOOGLE TRANSLATION HELPER ---
+/* ==========================================================================
+   PREDICTIVE TRANSLATION ENGINE FOR CUSTOM & EXISTING LANGUAGES
+   ========================================================================== */
+
 async function translateActiveUserText(text, forcedSourceLang = null) {
     if (!text || !text.trim()) return "";
 
@@ -73,7 +78,50 @@ async function translateActiveUserText(text, forcedSourceLang = null) {
     const sourceLang = forcedSourceLang || appState.user.knownLanguage || "English";
     const targetLang = activeTargetObj?.name || "Yoruba";
 
-    if (sourceLang.toLowerCase().trim() === targetLang.toLowerCase().trim()) return text;
+    const cleanInput = text.trim().toLowerCase();
+
+    // ----------------------------------------------------------------------
+    // STEP A: Predictive Lookup for Custom Languages / Private Corpus
+    // ----------------------------------------------------------------------
+    const targetLangKey = targetLang.toLowerCase();
+    const customDict = appState.user.customDictionaries?.[targetLangKey];
+
+    // 1. Direct exact match in custom dictionary
+    if (customDict && customDict[cleanInput]) {
+        return customDict[cleanInput];
+    }
+
+    // 2. Match inside user's private corpus
+    if (appState.user.privateCorpus && appState.user.privateCorpus.length > 0) {
+        const corpusMatch = appState.user.privateCorpus.find(
+            item => item.targetLang.toLowerCase() === targetLangKey && item.knownText.toLowerCase() === cleanInput
+        );
+        if (corpusMatch) return corpusMatch.targetText;
+    }
+
+    // 3. Word-by-word tokenized predictive translation heuristic
+    if (customDict && Object.keys(customDict).length > 0) {
+        const words = cleanInput.split(/\s+/);
+        const translatedWords = words.map(w => {
+            const cleanWord = w.replace(/[^\w\s]/gi, "");
+            return customDict[cleanWord] || w;
+        });
+
+        const predictedPhrase = translatedWords.join(" ");
+        if (predictedPhrase !== cleanInput) {
+            return predictedPhrase; // Return tokenized prediction
+        }
+    }
+
+    // If active language is custom and no translation prediction found yet, fallback gracefully
+    if (activeTargetObj?.isCustom) {
+        return `[${targetLang} Prediction]: ${text}`;
+    }
+
+    // ----------------------------------------------------------------------
+    // STEP B: Standard Google Translate API for Known Public Languages
+    // ----------------------------------------------------------------------
+    if (sourceLang.toLowerCase().trim() === targetLangKey) return text;
 
     const sourceCode = await getIsoCode(sourceLang);
     const targetCode = await getIsoCode(targetLang);
@@ -99,8 +147,6 @@ async function translateActiveUserText(text, forcedSourceLang = null) {
     }
 }
 
-// --- 4. PROFILE VIEW RENDERER ---
-// --- 4. PROFILE VIEW RENDERER ---
 function renderProfileView() {
     const emailEl = document.getElementById("profile-display-email");
     const usernameEl = document.getElementById("profile-display-username");
@@ -108,31 +154,69 @@ function renderProfileView() {
     const knownLangEl = document.getElementById("profile-display-known-lang");
     const corpusContainer = document.getElementById("private-corpus-list");
     const targetLangContainer = document.getElementById("user-target-languages-list") || document.querySelector(".target-lang-list");
+    const profileContainer = document.getElementById("profile-target-languages-list");
 
     if (emailEl) emailEl.innerHTML = `<i class="fa-solid fa-envelope"></i> ${appState.user.email}`;
     if (usernameEl) usernameEl.innerText = appState.user.username;
     if (styleEl) styleEl.innerText = appState.user.learningStyle;
     if (knownLangEl) knownLangEl.innerText = appState.user.knownLanguage;
 
-    // Render Active Target Languages on Profile with click handlers
+    // 1. Render Target Languages Management List
+    if (profileContainer) {
+        if (!appState.user.targetLanguages || appState.user.targetLanguages.length === 0) {
+            profileContainer.innerHTML = `<p class="empty-state-text" style="color: #64748b; font-style: italic;">No target languages added yet.</p>`;
+        } else {
+            profileContainer.innerHTML = appState.user.targetLanguages.map((lang, index) => `
+                <div class="lang-item-card" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; background: #ffffff;">
+                    <div>
+                        <strong style="color: #0f172a; display: block; font-size: 1.05em;">${lang.name}</strong>
+                        <small style="color: #64748b;">Level: ${lang.level || "A1 Beginner"} | Region: ${lang.origin || "Global"}</small>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        ${index === appState.user.activeTargetIndex ? '<span class="badge" style="background: #e0e7ff; color: #4338ca; padding: 4px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 600;">Active</span>' : ''}
+                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeTargetLanguage(${index})" title="Delete Language" style="color: #dc2626; border-color: #fca5a5; padding: 6px 10px; border-radius: 6px;">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join("");
+        }
+    }
+
+    // 2. Render Active Language Switcher Cards
+    // 2. Render Active Language Switcher Cards (With Delete Button)
     if (targetLangContainer) {
         if (!appState.user.targetLanguages || appState.user.targetLanguages.length === 0) {
             targetLangContainer.innerHTML = `<p class="empty-state-text">No target languages selected yet.</p>`;
         } else {
             targetLangContainer.innerHTML = appState.user.targetLanguages.map((lang, index) => `
                 <div class="target-lang-card ${index === appState.user.activeTargetIndex ? 'active-target' : ''}" 
-                     onclick="switchTargetAndGoToPath(${index})" 
-                     style="padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.2s;">
-                    <div>
+                     style="padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+                    
+                    <!-- Clickable info area to switch active target -->
+                    <div onclick="switchTargetAndGoToPath(${index})" style="cursor: pointer; flex-grow: 1;">
                         <strong style="color: #0f172a; font-size: 1.05em;">${lang.name}</strong>
                         <div style="font-size: 0.85em; color: #64748b;">${lang.origin || 'Language'} • ${lang.level || 'A1 Beginner'}</div>
                     </div>
-                    ${index === appState.user.activeTargetIndex ? '<span style="background: #dbeafe; color: #1e40af; font-size: 0.75em; padding: 4px 8px; border-radius: 12px; font-weight: 600;">Active</span>' : ''}
+
+                    <!-- Badge & Delete Action -->
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        ${index === appState.user.activeTargetIndex ? '<span style="background: #dbeafe; color: #1e40af; font-size: 0.75em; padding: 4px 8px; border-radius: 12px; font-weight: 600;">Active</span>' : ''}
+                        
+                        <button type="button" 
+                                class="btn-icon-danger" 
+                                onclick="event.stopPropagation(); removeTargetLanguage(${index});" 
+                                title="Remove Language" 
+                                style="background: transparent; border: none; color: #ef4444; cursor: pointer; padding: 6px; font-size: 1em; border-radius: 4px;">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
                 </div>
             `).join("");
         }
     }
 
+    // 3. Render Private Corpus Items
     if (corpusContainer) {
         if (!appState.user.privateCorpus || appState.user.privateCorpus.length === 0) {
             corpusContainer.innerHTML = `<p class="empty-state-text" style="color: #64748b; font-style: italic; margin-top: 12px;">No saved phrases yet. Use "Import Target Sentence or Audio" to build your corpus.</p>`;
@@ -146,20 +230,67 @@ function renderProfileView() {
                     <div style="color: #2563eb; font-weight: 600; font-size: 0.95em;">
                         ${item.targetLang || 'Target'}: <span style="color: #1e293b; font-weight: 400;">${item.targetText}</span>
                     </div>
-                    ${item.hasAudio && item.audioSrc ? `
-                        <div style="margin-top: 6px;">
-                            <audio controls src="${item.audioSrc}" style="width: 100%; height: 32px; border-radius: 4px;"></audio>
-                        </div>
-                    ` : item.hasAudio ? `
-                        <div style="margin-top: 4px; font-size: 0.8em; color: #059669; display: flex; align-items: center; gap: 6px;">
-                            <i class="fa-solid fa-file-audio"></i> <span>Audio Attached (${item.audioFileName || 'Voice Note'})</span>
-                        </div>
-                    ` : ''}
                 </div>
             `).join("");
         }
     }
-} 
+}
+
+// Removes a target language from appState and syncs with Supabase
+async function removeTargetLanguage(index) {
+    const targetLang = appState.user.targetLanguages[index];
+    if (!targetLang) return;
+
+    const confirmDelete = confirm(`Are you sure you want to remove ${targetLang.name} from your profile?`);
+    if (!confirmDelete) return;
+
+    // Remove language from local array
+    appState.user.targetLanguages.splice(index, 1);
+
+    // Re-adjust activeTargetIndex if needed
+    if (appState.user.activeTargetIndex === index) {
+        appState.user.activeTargetIndex = Math.max(0, appState.user.targetLanguages.length - 1);
+    } else if (appState.user.activeTargetIndex > index) {
+        appState.user.activeTargetIndex--;
+    }
+
+    saveStateToStorage();
+    renderProfileView();
+    updateLanguageLabels();
+
+    // Sync deletion to Supabase
+    await deleteLanguageFromSupabase(targetLang.name);
+}
+
+// Supabase Database Deletion logic
+async function deleteLanguageFromSupabase(languageName) {
+    saveStateToStorage();
+
+    if (!supabaseClient) {
+        showToast(`Removed ${languageName} locally.`);
+        return;
+    }
+
+    try {
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (!user) return;
+
+        const { error } = await supabaseClient
+            .from('profiles')
+            .update({ 
+                target_languages: appState.user.targetLanguages,
+                active_target_index: appState.user.activeTargetIndex 
+            })
+            .eq('id', user.id);
+
+        if (error) throw error;
+
+        showToast(`Successfully removed ${languageName} from profile.`);
+    } catch (err) {
+        console.error("Error updating Supabase:", err.message);
+        showToast("Removed locally. Failed to sync deletion with database.", "error");
+    }
+}
 
 function switchTargetAndGoToPath(index) {
     if (index >= 0 && index < appState.user.targetLanguages.length) {
@@ -321,6 +452,8 @@ async function handleImportData(e) {
     if (typeof renderLessonMap === "function") renderLessonMap();
 
     showToast("Phrase and translation saved to Profile!");
+
+    
 }
 
 
@@ -421,6 +554,7 @@ async function openExerciseModal(node) {
                 translateActiveUserText(displayedPrompt, userKnown),
                 new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2000))
             ]);
+            node.targetText = dynamicTargetText; //added on 8/12/26
         } catch (e) {
             dynamicTargetText = displayedPrompt;
         }
@@ -455,6 +589,19 @@ async function openExerciseModal(node) {
                     </button>
                 </div>
             </div>
+
+            <!-- Correction & Update Box on 8/12/2026 -->
+            <div style="margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 12px; text-align: left;">
+                <label style="font-size: 0.82em; font-weight: 600; color: #475569; display: block; margin-bottom: 6px;">Correct Target Translation:</label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="edit-target-text-input" value="${dynamicTargetText}" style="flex: 1; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9em;" placeholder="Type corrected translation...">
+                    <button type="button" onclick="updateNodeTranslation()" style="padding: 8px 12px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85em; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-pen-to-square"></i> Update Translation
+                    </button>
+                </div>
+            </div>
+
+
             <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
                 <button type="button" onclick="closeExerciseModal()" style="padding: 8px 16px; background: #e2e8f0; border: none; border-radius: 6px; cursor: pointer;">Close</button>
                 <button type="button" onclick="submitExerciseAnswer()" style="padding: 8px 16px; background: #16a34a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Got It!</button>
@@ -468,7 +615,18 @@ async function openExerciseModal(node) {
                     <i class="fa-solid fa-volume-high"></i> Listen Target Phrase
                 </button>
             </div>
-            <input type="text" id="exercise-user-input" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 16px;" placeholder="Type target translation...">
+
+            <!-- Updated on 8/12/2026 -->
+           <div style="margin-bottom: 16px;">
+                <label style="font-size: 0.82em; font-weight: 600; color: #475569; display: block; margin-bottom: 6px;">Target Translation:</label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="exercise-user-input" value="${dynamicTargetText}" style="flex: 1; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px;" placeholder="Type target translation...">
+                    <button type="button" onclick="updateNodeTranslation()" style="padding: 8px 12px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85em; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-pen-to-square"></i> Update Translation
+                    </button>
+                </div>
+            </div>
+
             <div style="display: flex; justify-content: flex-end; gap: 8px;">
                 <button type="button" onclick="closeExerciseModal()" style="padding: 8px 16px; background: #e2e8f0; border: none; border-radius: 6px; cursor: pointer;">Close</button>
                 <button type="button" onclick="submitExerciseAnswer()" style="padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Submit</button>
@@ -542,6 +700,49 @@ function closeExerciseModal() {
         setTimeout(() => modal.style.display = "none", 200);
     }
     appState.activeNode = null;
+}
+
+// --- UPDATE & PERSIST TRANSLATION CORRECTIONS ---
+async function updateNodeTranslation() {
+    const inputEl = document.getElementById("exercise-user-input") || document.getElementById("edit-target-text-input");
+    if (!inputEl) return;
+
+    const newTranslation = inputEl.value.trim();
+    if (!newTranslation) {
+        showToast("Please enter a valid translation.");
+        return;
+    }
+
+    if (appState.activeNode) {
+        // 1. Update active node in memory
+        appState.activeNode.targetText = newTranslation;
+
+        // 2. Sync inside appState.lessonNodes array
+        const nodeInList = appState.lessonNodes.find(n => n.id === appState.activeNode.id);
+        if (nodeInList) {
+            nodeInList.targetText = newTranslation;
+        }
+
+        // 3. Update active modal flashcard state
+        if (window.currentModalFlashcard) {
+            window.currentModalFlashcard.back = newTranslation;
+
+            // If card is currently flipped, update visible text live
+            const textEl = document.getElementById("flashcard-text");
+            if (textEl && window.currentModalFlashcard.isFlipped) {
+                textEl.innerText = newTranslation;
+            }
+        }
+
+        // 4. Save system-wide to LocalStorage and Supabase
+        saveStateToStorage();
+        saveUserLanguagesToSupabase();
+
+        // 5. Re-render lesson map
+        if (typeof renderLessonMap === "function") renderLessonMap();
+
+        showToast("Translation updated system-wide!");
+    }
 }
 // Triggers MMS-TTS for the active flashcard/modal phrase
 function playCurrentModalAudio() {
@@ -792,24 +993,65 @@ function restoreStateFromStorage() {
 }
 
 async function saveUserLanguagesToSupabase() {
-    if (!supabaseClient || !appState.user.isLoggedIn) return;
+    // Save to LocalStorage immediately
+    saveStateToStorage();
+
+    if (!supabaseClient) return;
 
     try {
         const { data: { user } } = await supabaseClient.auth.getUser();
         if (!user) return;
 
-        await supabaseClient
+        const { error } = await supabaseClient
             .from('profiles')
             .update({
                 target_languages: appState.user.targetLanguages,
                 active_target_index: appState.user.activeTargetIndex,
                 learning_style: appState.user.learningStyle,
-                lesson_nodes: appState.lessonNodes
+                lesson_nodes: appState.lessonNodes,
+                updated_at:new Date().toISOString()
             })
             .eq('id', user.id);
+
+       if (error) {
+            console.error("Error updating target languages in Supabase:", error.message);
+        }
     } catch (err) {
-        console.warn("Could not sync to Supabase:", err.message);
+        console.error("Failed to sync updated target languages:", err);
     }
+}
+
+/* ==========================================================================
+   DELETE TARGET LANGUAGE FROM PROFILE
+   ========================================================================== */
+
+async function deleteTargetLanguage(index) {
+    if (index < 0 || index >= appState.user.targetLanguages.length) return;
+
+    const langName = appState.user.targetLanguages[index].name;
+
+    if (!confirm(`Are you sure you want to remove "${langName}" from your target languages?`)) {
+        return;
+    }
+
+    // 1. Remove language from targetLanguages array
+    appState.user.targetLanguages.splice(index, 1);
+
+    // 2. Adjust active Target Index safely
+    if (appState.user.activeTargetIndex >= appState.user.targetLanguages.length) {
+        appState.user.activeTargetIndex = Math.max(0, appState.user.targetLanguages.length - 1);
+    }
+
+    // 3. Sync changes
+    saveStateToStorage();
+    await saveUserLanguagesToSupabase();
+
+    // 4. Update UI views
+    renderProfileView();
+    updateLanguageLabels();
+    if (typeof renderLanguageGrid === "function") renderLanguageGrid();
+
+    showToast(`Removed "${langName}" from your target languages.`);
 }
 
 async function fetchUserProfile(userId) {
@@ -924,6 +1166,8 @@ async function handleAuthSubmit(event) {
                 appState.user.email = user.email;
                 appState.user.username = user.user_metadata?.username || user.email.split("@")[0];
                 await fetchUserProfile(user.id);
+                await fetchAvailableLanguages();
+                renderLanguageGrid();
             }
         } else {
             appState.user.isLoggedIn = true;
@@ -956,18 +1200,25 @@ function updateAuthButtonUI() {
 }
 
 // Click Handler for Nav Auth Button
+// In script_4.js: Update sign-out flow
 async function handleAuthNavClick() {
     if (appState.user.isLoggedIn) {
-        // Handle Logout
+        // 1. Sign out from Supabase session
         if (supabaseClient) {
             await supabaseClient.auth.signOut();
         }
+
+        // 2. Clear local user state
         resetUserState();
+
+        // 3. Re-fetch global languages (RLS will now return ONLY default languages)
+        await fetchAvailableLanguages();
+        renderLanguageGrid();
+
         updateAuthButtonUI();
         showToast("Signed out successfully.");
         navigateTo("auth-view");
     } else {
-        // Navigate to Login/Signup View
         navigateTo("auth-view");
     }
 }
@@ -983,13 +1234,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             await fetchUserProfile(session.user.id);
         }
     }
-
+    await fetchAvailableLanguages();
     const authForm = document.getElementById("auth-form") || document.querySelector("form");
     if (authForm) {
         authForm.addEventListener("submit", handleAuthSubmit);
     }
 
-    await fetchAvailableLanguages();
+    
     renderLanguageGrid();
     renderProfileView();
     updateLanguageLabels();
@@ -1040,19 +1291,19 @@ async function navigateTo(viewId) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function selectMethod(element) {
-    document.querySelectorAll(".method-option").forEach(opt => opt.classList.remove("selected"));
-    element.classList.add("selected");
-    appState.user.learningStyle = element.getAttribute("data-value");
-}
+// function selectMethod(element) {
+//     document.querySelectorAll(".method-option").forEach(opt => opt.classList.remove("selected"));
+//     element.classList.add("selected");
+//     appState.user.learningStyle = element.getAttribute("data-value");
+// }
 
-function saveMethodAndNext() {
-    saveStateToStorage();
-    saveUserLanguagesToSupabase();
-    renderProfileView();
-    showToast(`Learning method set: ${appState.user.learningStyle}`);
-    navigateTo("languages-view");
-}
+// function saveMethodAndNext() {
+//     saveStateToStorage();
+//     saveUserLanguagesToSupabase();
+//     renderProfileView();
+//     showToast(`Learning method set: ${appState.user.learningStyle}`);
+//     navigateTo("languages-view");
+// }
 
 function renderLanguageGrid() {
     const grid = document.getElementById("language-grid");
@@ -1072,35 +1323,344 @@ function renderLanguageGrid() {
         grid.appendChild(card);
     });
 }
-
+// Updated Target Language Selection to open Level & Style Modal
 function selectTargetLanguage(lang, cardElement) {
     document.querySelectorAll(".lang-card").forEach(c => c.classList.remove("selected"));
-    cardElement.classList.add("selected");
+    if (cardElement) cardElement.classList.add("selected");
 
-    const existingIdx = appState.user.targetLanguages.findIndex(l => l.name === lang.name);
+    let existingIdx = appState.user.targetLanguages.findIndex(l => l.name === lang.name);
     if (existingIdx >= 0) {
         appState.user.activeTargetIndex = existingIdx;
     } else {
         appState.user.targetLanguages.push({
             name: lang.name,
-            origin: lang.region,
+            origin: lang.region || "Global",
             related: "Regional Dialects",
             level: "A1 Beginner"
         });
         appState.user.activeTargetIndex = appState.user.targetLanguages.length - 1;
     }
 
-    updateLanguageLabels();
-    saveStateToStorage();
-    saveUserLanguagesToSupabase();
-    renderProfileView();
-    navigateTo("sample-data-view");
+    openLevelAndStyleModal(lang.name);
+    
+
 }
 
-function openCustomLangModal() {
-    const modal = document.getElementById("custom-lang-modal");
-    if (modal) modal.classList.add("active");
+// Modal Trigger for Direct Path & Level Setup
+function openLevelAndStyleModal(langName) {
+    let modal = document.getElementById("level-style-modal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "level-style-modal";
+        modal.className = "modal-overlay";
+        document.body.appendChild(modal);
+    }
+
+    const currentStyle = appState.user.learningStyle || "Interactive Flashcards";
+
+    modal.innerHTML = `
+        <div class="modal-card" style="max-width: 460px;">
+            <div class="modal-header">
+                <h3>Start Learning ${langName}</h3>
+                <button type="button" class="modal-close" onclick="closeModal('level-style-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+                <div class="form-group">
+                    <label style="font-weight: 600; color: #0f172a; margin-bottom: 6px; display: block;">Select Proficiency Level</label>
+                    <select id="modal-select-level" class="form-select" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1;">
+                        <option value="A1 Beginner">A1 Beginner (Basic Words & Greetings)</option>
+                        <option value="A2 Elementary">A2 Elementary (Phrases & Family)</option>
+                        <option value="B1 Intermediate">B1 Intermediate (Conversational Syntax)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label style="font-weight: 600; color: #0f172a; margin-bottom: 6px; display: block;">Preferred Learning Style</label>
+                    <select id="modal-select-style" class="form-select" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1;">
+                        <option value="Flashcards with Pictures" ${currentStyle.includes("Flashcards") ? 'selected' : ''}>Interactive Flashcards</option>
+                        <option value="Sentence Structure Practice" ${currentStyle.includes("Structure") ? 'selected' : ''}>Sentence Structure & Grammar</option>
+                        <option value="Speaking Practice" ${currentStyle.includes("Speaking") ? 'selected' : ''}>Active Speaking & Audio Recall</option>
+                        <option value="Gamification" ${currentStyle.includes("Gamification") ? 'selected' : ''}>Gamification Challenges</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('level-style-modal')">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="confirmPathAndStart()">Generate Path & Start <i class="fa-solid fa-arrow-right"></i></button>
+            </div>
+        </div>
+    `;
+
+    modal.classList.add("active");
+    modal.style.display = "flex";
+    modal.style.opacity = "1";
 }
+
+// Generates Dynamic Path & Routes Directly to Map
+function confirmPathAndStart() {
+    const selectedLevel = document.getElementById("modal-select-level").value;
+    const selectedStyle = document.getElementById("modal-select-style").value;
+
+    const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex];
+    if (activeTarget) {
+        activeTarget.level = selectedLevel;
+    }
+    appState.user.learningStyle = selectedStyle;
+
+    generateDynamicNodes(selectedLevel, selectedStyle);
+
+    saveStateToStorage();
+    saveUserLanguagesToSupabase();
+    updateLanguageLabels();
+    renderProfileView();
+
+    closeModal("level-style-modal");
+    showToast(`Path generated for ${activeTarget.name} (${selectedLevel})!`);
+    navigateTo("lessons-view");
+}
+
+// Dynamically populates nodes based on level and style
+function generateDynamicNodes(level, style) {
+    const isSpeaking = style.toLowerCase().includes("speaking");
+    const isGrammar = style.toLowerCase().includes("structure");
+
+    if (level.startsWith("A1")) {
+        appState.lessonNodes = [
+            { id: "A1.1", label: isSpeaking ? "A1: Audio Greetings" : "A1: Basic Greetings", x: 15, y: 80, status: "active", prompt: "Good morning grandfather", targetText: "" },
+            { id: "A1.2", label: isGrammar ? "A1: Sentence Syntax" : "A1: Daily Check-in", x: 35, y: 35, status: "locked", prompt: "How are you doing today?", targetText: "" },
+            { id: "A1.3", label: "A1: Shared Meals", x: 60, y: 70, status: "locked", prompt: "Let us eat together", targetText: "" }
+        ];
+    } else if (level.startsWith("A2")) {
+        appState.lessonNodes = [
+            { id: "A2.1", label: "A2: Expressing Gratitude", x: 20, y: 70, status: "active", prompt: "Thank you for the meal", targetText: "" },
+            { id: "A2.2", label: isSpeaking ? "A2: Oral Storytelling" : "A2: Storytelling Roots", x: 50, y: 30, status: "locked", prompt: "Tell me a story from home", targetText: "" },
+            { id: "A2.3", label: "A2: Family History", x: 80, y: 65, status: "locked", prompt: "Where were you born?", targetText: "" }
+        ];
+    } else {
+        appState.lessonNodes = [
+            { id: "B1.1", label: "B1: Complex Phrases", x: 25, y: 75, status: "active", prompt: "I am learning my heritage language", targetText: "" },
+            { id: "B1.2", label: "B1: Cultural Expressiveness", x: 65, y: 35, status: "locked", prompt: "Our culture is rich and vibrant", targetText: "" }
+        ];
+    }
+}
+
+
+// function selectTargetLanguage(lang, cardElement) {
+//     document.querySelectorAll(".lang-card").forEach(c => c.classList.remove("selected"));
+//     cardElement.classList.add("selected");
+
+//     const existingIdx = appState.user.targetLanguages.findIndex(l => l.name === lang.name);
+//     if (existingIdx >= 0) {
+//         appState.user.activeTargetIndex = existingIdx;
+//     } else {
+//         appState.user.targetLanguages.push({
+//             name: lang.name,
+//             origin: lang.region,
+//             related: "Regional Dialects",
+//             level: "A1 Beginner"
+//         });
+//         appState.user.activeTargetIndex = appState.user.targetLanguages.length - 1;
+//     }
+
+//     updateLanguageLabels();
+//     saveStateToStorage();
+//     saveUserLanguagesToSupabase();
+//     renderProfileView();
+//     navigateTo("sample-data-view");
+// // }/* ==========================================================================
+//    CUSTOM LANGUAGE CREATION & PATH GENERATION ENGINE
+//    ==========================================================================
+
+// Open Custom Language Modal & reset step state
+function openCustomLangModal() {
+    let modal = document.getElementById("custom-lang-modal");
+    if (!modal) return;
+
+    // Reset step visibility
+    goToCustomLangStep(1);
+
+    modal.classList.add("active");
+    modal.style.display = "flex";
+    modal.style.opacity = "1";
+}
+
+// Navigate between Form 1 and Form 2
+function goToCustomLangStep(stepNumber) {
+    const step1 = document.getElementById("custom-lang-step-1");
+    const step2 = document.getElementById("custom-lang-step-2");
+
+    if (stepNumber === 1) {
+        if (step1) step1.style.display = "block";
+        if (step2) step2.style.display = "none";
+    } else if (stepNumber === 2) {
+        // Validate Step 1 Inputs before moving to Step 2
+        const nameInput = document.getElementById("custom-lang-name");
+        if (!nameInput || !nameInput.value.trim()) {
+            showToast("Please enter a custom language name.");
+            return;
+        }
+        if (step1) step1.style.display = "none";
+        if (step2) step2.style.display = "block";
+    }
+}
+
+// Main Submission Handler: Process Forms 1 & 2
+async function handleCreateCustomLanguage(event) {
+    if (event) event.preventDefault();
+
+    // --- Form 1 Data: Metadata ---
+    const langName = document.getElementById("custom-lang-name")?.value.trim();
+    const region = document.getElementById("custom-lang-region")?.value.trim() || "Custom Community";
+    const flag = document.getElementById("custom-lang-flag")?.value.trim() || "🗣️";
+    const grammarNotes = document.getElementById("custom-lang-grammar")?.value.trim() || "";
+
+    // --- Form 2 Data: Baseline Word Pairs for Translation Prediction ---
+    const sampleKnown1 = document.getElementById("custom-known-1")?.value.trim();
+    const sampleTarget1 = document.getElementById("custom-target-1")?.value.trim();
+
+    const sampleKnown2 = document.getElementById("custom-known-2")?.value.trim();
+    const sampleTarget2 = document.getElementById("custom-target-2")?.value.trim();
+
+    const sampleKnown3 = document.getElementById("custom-known-3")?.value.trim();
+    const sampleTarget3 = document.getElementById("custom-target-3")?.value.trim();
+
+    if (!langName) {
+        showToast("Language name is required.");
+        return;
+    }
+
+    showToast(`Analyzing ${langName} and creating learning path...`);
+
+    // 1. Build Dictionary & Sample Corpus from Form 2 Inputs
+    const seedCorpus = [];
+    const dictionary = {};
+
+    if (sampleKnown1 && sampleTarget1) {
+        seedCorpus.push({ knownText: sampleKnown1, targetText: sampleTarget1 });
+        dictionary[sampleKnown1.toLowerCase()] = sampleTarget1;
+    }
+    if (sampleKnown2 && sampleTarget2) {
+        seedCorpus.push({ knownText: sampleKnown2, targetText: sampleTarget2 });
+        dictionary[sampleKnown2.toLowerCase()] = sampleTarget2;
+    }
+    if (sampleKnown3 && sampleTarget3) {
+        seedCorpus.push({ knownText: sampleKnown3, targetText: sampleTarget3 });
+        dictionary[sampleKnown3.toLowerCase()] = sampleTarget3;
+    }
+
+    // Store custom dictionary globally in appState
+    if (!appState.user.customDictionaries) appState.user.customDictionaries = {};
+    appState.user.customDictionaries[langName.toLowerCase()] = dictionary;
+
+    // 2. Add Custom Language to Available & User Target Languages
+    const newLangObject = {
+        name: langName,
+        region: region,
+        flag: flag,
+        isCustom: true,
+        grammarNotes: grammarNotes,
+        corpus: seedCorpus
+    };
+
+    // Push to available languages list
+    appState.availableLanguages.push(newLangObject);
+
+    // Add or set as active Target Language for User
+    let existingIdx = appState.user.targetLanguages.findIndex(l => l.name.toLowerCase() === langName.toLowerCase());
+    if (existingIdx >= 0) {
+        appState.user.targetLanguages[existingIdx] = { ...appState.user.targetLanguages[existingIdx], ...newLangObject };
+        appState.user.activeTargetIndex = existingIdx;
+    } else {
+        appState.user.targetLanguages.push({
+            name: langName,
+            origin: region,
+            related: "Custom Language",
+            level: "A1 Beginner",
+            isCustom: true
+        });
+        appState.user.activeTargetIndex = appState.user.targetLanguages.length - 1;
+    }
+
+    // 3. Analyze Language & Generate Custom Learning Path Nodes
+    generateCustomLanguageNodes(langName, seedCorpus);
+
+    // 4. Save to Supabase and LocalStorage
+    saveStateToStorage();
+    await saveCustomLanguageToSupabase(newLangObject);
+    saveUserLanguagesToSupabase();
+
+    // 5. Update UI & Navigate directly to Learning Path Map
+    closeModal("custom-lang-modal");
+    updateLanguageLabels();
+    renderProfileView();
+    renderLanguageGrid();
+    
+    showToast(`Custom Language "${langName}" created! Path ready.`);
+    navigateTo("lessons-view");
+}
+
+// Generates dynamic lesson nodes tailored to custom sample inputs
+function generateCustomLanguageNodes(langName, seedCorpus) {
+    const baseNodes = [
+        {
+            id: "Custom.1",
+            label: `A1: Greetings in ${langName}`,
+            x: 20,
+            y: 80,
+            status: "active",
+            prompt: seedCorpus[0]?.knownText || "Good morning",
+            targetText: seedCorpus[0]?.targetText || ""
+        },
+        {
+            id: "Custom.2",
+            label: "A1: Key Expressions",
+            x: 45,
+            y: 40,
+            status: "locked",
+            prompt: seedCorpus[1]?.knownText || "Thank you very much",
+            targetText: seedCorpus[1]?.targetText || ""
+        },
+        {
+            id: "Custom.3",
+            label: "A1: Daily Dialogue",
+            x: 75,
+            y: 70,
+            status: "locked",
+            prompt: seedCorpus[2]?.knownText || "How are you doing today?",
+            targetText: seedCorpus[2]?.targetText || ""
+        }
+    ];
+
+    appState.lessonNodes = baseNodes;
+}
+
+// Sync Custom Language record to Supabase
+async function saveCustomLanguageToSupabase(langObj) {
+    if (!supabaseClient) return;
+
+    try {
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (!user) return;
+
+        const { error } = await supabaseClient
+            .from('languages')
+            .insert([{
+                name: langObj.name,
+                region: langObj.region,
+                flag: langObj.flag,
+                is_custom: true,
+                created_by: user.id,
+                grammar_notes: langObj.grammarNotes,
+                sample_corpus: langObj.corpus
+            }]);
+
+        if (error) console.warn("Supabase custom language insert warning:", error.message);
+    } catch (err) {
+        console.error("Failed to save custom language to Supabase:", err);
+    }
+}
+
+
 
 function closeModal(modalId) {
     const modal = document.getElementById(modalId);
@@ -1110,28 +1670,109 @@ function closeModal(modalId) {
         setTimeout(() => modal.style.display = "none", 200);
     }
 }
-
 function updateLanguageLabels() {
     const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
     if (!activeTarget) return;
 
+    const levelTag = document.getElementById("current-level-tag");
+    if (levelTag) levelTag.innerText = activeTarget.level || "A1 Beginner";
+
     const userKnown = appState.user.knownLanguage || "English";
-
-    const targetNameSpan = document.getElementById("sample-target-name");
-    if (targetNameSpan) targetNameSpan.innerText = activeTarget.name;
-
-    const knownLangLabel = document.getElementById("known-lang-label");
-    if (knownLangLabel) knownLangLabel.innerText = userKnown;
-
     const mapTitle = document.getElementById("map-target-title");
     if (mapTitle) mapTitle.innerText = `${userKnown} → ${activeTarget.name} Path`;
 
     const targetBadge = document.getElementById("current-target-badge");
     if (targetBadge) targetBadge.innerHTML = `<i class="fa-solid fa-language"></i> ${userKnown} → ${activeTarget.name}`;
 
-    if (typeof renderSampleSentences === "function") renderSampleSentences();
     if (typeof renderLessonMap === "function") renderLessonMap();
 }
+
+// Opens the method switcher modal directly from the learning path view
+function openChangeMethodModal() {
+    let modal = document.getElementById("change-method-modal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "change-method-modal";
+        modal.className = "modal-overlay";
+        document.body.appendChild(modal);
+    }
+
+    const currentStyle = appState.user.learningStyle || "Interactive Flashcards";
+
+    modal.innerHTML = `
+        <div class="modal-card" style="max-width: 440px;">
+            <div class="modal-header">
+                <h3>Change Learning Method</h3>
+                <button type="button" class="modal-close" onclick="closeModal('change-method-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding: 16px 0;">
+                <label style="font-weight: 600; color: #0f172a; margin-bottom: 8px; display: block;">Select Exercise & Study Style</label>
+                <select id="inline-method-select" class="form-select" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1;">
+                    <option value="Interactive Flashcards" ${currentStyle.includes("Flashcards") ? 'selected' : ''}>Interactive Flashcards</option>
+                    <option value="Sentence Structure Practice" ${currentStyle.includes("Structure") ? 'selected' : ''}>Sentence Structure & Grammar</option>
+                    <option value="Speaking Practice" ${currentStyle.includes("Speaking") ? 'selected' : ''}>Active Speaking & Audio Recall</option>
+                    <option value="Recall Quizzes" ${currentStyle.includes("Recall") ? 'selected' : ''}>Recall Quizzes & Memory</option>
+                    <option value="Gamification" ${currentStyle.includes("Gamification") ? 'selected' : ''}>Gamification Challenges</option>
+                </select>
+                <small style="color: #64748b; font-size: 0.82em; display: block; margin-top: 8px;">Changing your method will instantly adjust node titles, interactive exercises, and modal prompts on your current path.</small>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('change-method-modal')">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="applyNewLearningMethod()">Apply Changes <i class="fa-solid fa-check"></i></button>
+            </div>
+        </div>
+    `;
+
+    modal.classList.add("active");
+    modal.style.display = "flex";
+    modal.style.opacity = "1";
+}
+
+// Applies selected method, regenerates map nodes, and updates active state
+function applyNewLearningMethod() {
+    const selectEl = document.getElementById("inline-method-select");
+    if (!selectEl) return;
+
+    const newStyle = selectEl.value;
+    appState.user.learningStyle = newStyle;
+
+    const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
+    const currentLevel = activeTarget ? (activeTarget.level || "A1 Beginner") : "A1 Beginner";
+
+    // Regenerate nodes dynamically based on current level and newly selected style
+    if (typeof generateDynamicNodes === "function") {
+        generateDynamicNodes(currentLevel, newStyle);
+    }
+
+    saveStateToStorage();
+    saveUserLanguagesToSupabase();
+    renderProfileView();
+    renderLessonMap();
+
+    closeModal("change-method-modal");
+    showToast(`Learning method updated to "${newStyle}"!`);
+}
+// function updateLanguageLabels() {
+//     const activeTarget = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
+//     if (!activeTarget) return;
+
+//     const userKnown = appState.user.knownLanguage || "English";
+
+//     const targetNameSpan = document.getElementById("sample-target-name");
+//     if (targetNameSpan) targetNameSpan.innerText = activeTarget.name;
+
+//     const knownLangLabel = document.getElementById("known-lang-label");
+//     if (knownLangLabel) knownLangLabel.innerText = userKnown;
+
+//     const mapTitle = document.getElementById("map-target-title");
+//     if (mapTitle) mapTitle.innerText = `${userKnown} → ${activeTarget.name} Path`;
+
+//     const targetBadge = document.getElementById("current-target-badge");
+//     if (targetBadge) targetBadge.innerHTML = `<i class="fa-solid fa-language"></i> ${userKnown} → ${activeTarget.name}`;
+
+//     if (typeof renderSampleSentences === "function") renderSampleSentences();
+//     if (typeof renderLessonMap === "function") renderLessonMap();
+// }
 
 async function renderSampleSentences() {
     const container = document.getElementById("sample-sentences-container");
