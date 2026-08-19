@@ -29,7 +29,7 @@
             </nav>
 
             <div class="header-actions">
-                <button class="btn btn-outline" id="header-auth-btn" onclick="navigateTo('auth-view')">Sign In</button>
+               <button id="nav-auth-btn" class="nav-btn" onclick="handleAuthNavClick()">Sign In</button>
             </div>
         </div>
     </header>
@@ -43,7 +43,7 @@
                 <div class="hero-content">
                     <span class="hero-badge"><i class="fa-solid fa-heart"></i> Built for Heritage Learners</span>
                     <h1 class="hero-title">Connect to your heritage through language with <span class="brand-highlight">HeritageVoice</span></h1>
-                    <p class="hero-subtitle">Preserving low-resource languages and instilling confidence in YOU!</p>
+                    <p class="hero-subtitle">Preserving low-resource languages and instilling confidence to connecting with your culture</p>
                     <button class="btn btn-primary btn-hero" onclick="navigateTo('auth-view')">
                         Begin your learning <i class="fa-solid fa-arrow-right"></i>
                     </button>
@@ -275,6 +275,7 @@
                     <div class="header-buttons">
                         <button class="btn btn-secondary btn-sm" onclick="openAddDataModal()"><i class="fa-solid fa-plus"></i> Add Audio / Sentences</button>
                         <button class="btn btn-outline btn-sm" onclick="navigateTo('languages-view')"><i class="fa-solid fa-repeat"></i> Switch Language</button>
+                        <button class="btn btn-secondary btn-sm" onclick="openChangeMethodModal()"><i class="fa-solid fa-sliders"></i> Change Method</button>
                     </div>
                 </div>
 
@@ -366,47 +367,67 @@
     </main>
 
     <!-- MODAL 1: ADD CUSTOM TARGET LANGUAGE -->
-    <div id="custom-lang-modal" class="modal-overlay">
-        <div class="modal-card">
-            <div class="modal-header">
-                <h3>Add Low-Resource / Custom Language</h3>
-                <button class="modal-close" onclick="closeModal('custom-lang-modal')"><i class="fa-solid fa-xmark"></i></button>
+<!-- Custom Language Creation Modal -->
+<div id="custom-lang-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="max-width: 520px; width: 90%;">
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-plus-circle"></i> Create Custom Language Entry</h3>
+            <button type="button" class="modal-close" onclick="closeModal('custom-lang-modal')">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- FORM STEP 1: Language Metadata -->
+        <div id="custom-lang-step-1" class="modal-body">
+            <p style="font-size: 0.9em; color: #64748b; margin-bottom: 12px;">Step 1 of 2: Basic Information</p>
+            
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label style="font-weight: 600; font-size: 0.85em; display: block; margin-bottom: 4px;">Language Name *</label>
+                <input type="text" id="custom-lang-name" class="form-input" placeholder="e.g. Garifuna, Arawak, Creole" required>
             </div>
-            <form onsubmit="handleCreateCustomLanguage(event)">
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label for="custom-lang-name">Language Name *</label>
-                        <input type="text" id="custom-lang-name" class="form-input" placeholder="e.g. Sousou, Garifuna, Haitian Creole" required>
-                    </div>
 
-                    <div class="form-group">
-                        <label for="custom-lang-origin">Origin / Geographic Region *</label>
-                        <input type="text" id="custom-lang-origin" class="form-input" placeholder="e.g. Guinea, West Africa / Caribbean" required>
-                    </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label style="font-weight: 600; font-size: 0.85em; display: block; margin-bottom: 4px;">Region / Origin</label>
+                <input type="text" id="custom-lang-region" class="form-input" placeholder="e.g. Caribbean / Central America">
+            </div>
 
-                    <div class="form-group">
-                        <label for="custom-lang-related">What other language is used / similar to it?</label>
-                        <input type="text" id="custom-lang-related" class="form-input" placeholder="e.g. Mandinka, French, Pular">
-                        <small class="help-text">Our database will ingest diagnostic pairs and map structure from related linguistic families.</small>
-                    </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label style="font-weight: 600; font-size: 0.85em; display: block; margin-bottom: 4px;">Grammar & Phonetic Notes</label>
+                <textarea id="custom-lang-grammar" class="form-input" rows="2" placeholder="e.g. Subject-Verb-Object word order, tonal language..."></textarea>
+            </div>
 
-                    <div class="form-group">
-                        <label for="custom-lang-level">Your Current Level</label>
-                        <select id="custom-lang-level" class="form-select">
-                            <option value="A1 Beginner">A1 - Absolute Beginner (Understand few words)</option>
-                            <option value="A2 Elementary">A2 - Elementary (Understand basic family conversation)</option>
-                            <option value="B1 Intermediate">B1 - Intermediate (Can speak with errors)</option>
-                            <option value="B2 Advanced">B2 - Fluent Heritage Comprehension</option>
-                        </select>
-                    </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('custom-lang-modal')">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="goToCustomLangStep(2)">Next: Add Phrases <i class="fa-solid fa-arrow-right"></i></button>
+            </div>
+        </div>
+
+        <!-- FORM STEP 2: Baseline Sample Corpus for Predictive Translation -->
+        <div id="custom-lang-step-2" class="modal-body" style="display: none;">
+            <p style="font-size: 0.9em; color: #64748b; margin-bottom: 12px;">Step 2 of 2: Enter Baseline Sample Phrases to train Predictive Translation</p>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="custom-known-1" placeholder="Known (e.g. Good morning Grandfather)" style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                    <input type="text" id="custom-target-1" placeholder="Translation" style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline" onclick="closeModal('custom-lang-modal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save & Start Diagnostic</button>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="custom-known-2" placeholder="Known (e.g. What are you doing?" style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                    <input type="text" id="custom-target-2" placeholder="Translation" style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
                 </div>
-            </form>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="custom-known-3" placeholder="Known (e.g. How are you doing?)" style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                    <input type="text" id="custom-target-3" placeholder="Translation" style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; gap: 8px; margin-top: 20px;">
+                <button type="button" class="btn btn-outline" onclick="goToCustomLangStep(1)"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                <button type="button" class="btn btn-success" onclick="handleCreateCustomLanguage(event)" style="background: #16a34a; color: white;">Generate Custom Path & Save</button>
+            </div>
         </div>
     </div>
+</div>
 
     <!-- MODAL 2: LESSON ACTIVE RECALL EXERCISE & CORRECTION -->
     <div id="lesson-exercise-modal" class="modal-overlay">
@@ -443,7 +464,9 @@
                         <label for="ex-user-input">Target Language Translation (<span class="target-lang-text">Sousou</span>):</label>
                         <div class="input-with-action">
                             <input type="text" id="ex-user-input" class="form-input" placeholder="Type target spelling or pronunciation...">
-                            <button class="btn btn-secondary" onclick="simulateCorrection()"><i class="fa-solid fa-pen-to-square"></i> Correct Translation</button>
+                        <button class="btn btn-secondary" onclick="updateNodeTranslation()">
+                            <i class="fa-solid fa-pen-to-square"></i> Update Translation
+                        </button>
                         </div>
                         <p id="correction-feedback" class="feedback-text hidden"></p>
                     </div>
@@ -466,40 +489,40 @@
     </div>
 
     <!-- MODAL 3: ADD AUDIO / SENTENCE MID-JOURNEY -->
-    <div id="add-data-modal" class="modal-overlay">
-        <div class="modal-card">
-            <div class="modal-header">
-                <h3>Import Target Sentence or Audio</h3>
-                <button class="modal-close" onclick="closeModal('add-data-modal')"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <form onsubmit="handleImportData(event)">
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Phrase in Known Language</label>
-                        <input type="text" id="import-known-text" class="form-input" placeholder="e.g. Good morning grandfather" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Target Language Wording / Phonetics</label>
-                        <input type="text" id="import-target-text" class="form-input" placeholder="e.g. Inoma kene" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Upload Audio Recording (Optional)</label>
-                        <div class="file-drop-zone">
-                            <i class="fa-solid fa-cloud-arrow-up"></i>
-                            <p>Drag & drop voice note or click to upload (.mp3, .wav, .m4a)</p>
-                            <input type="file" class="file-input-hidden" accept="audio/*">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline" onclick="closeModal('add-data-modal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Add to Profile Corpus</button>
-                </div>
-            </form>
+   <div id="add-data-modal" class="modal-overlay hidden" style="pointer-events: none;" onclick="event.stopPropagation()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3>Import Target Sentence or Audio</h3>
+            <button type="button" class="modal-close" onclick="cancelAddDataModal(event)"><i class="fa-solid fa-xmark"></i></button>
         </div>
+        <form id="import-data-form" onsubmit="handleImportData(event)">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="import-known-text">Phrase in Known Language</label>
+                    <input type="text" id="import-known-text" class="form-input" placeholder="e.g. Good morning grandfather" oninput="handleKnownTextAutoTranslate(this.value)" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="import-target-text">Target language translation</label>
+                    <input type="text" id="import-target-text" class="form-input" placeholder="Auto-translating or type manually..." required>
+                </div>
+
+                <div class="form-group">
+                    <label>Upload Audio Recording (Optional)</label>
+                    <div class="file-drop-zone" onclick="triggerAudioUpload(event)">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <p id="file-drop-text">Drag & drop voice note or click to upload (.mp3, .wav, .m4a)</p>
+                        <input type="file" id="import-audio-file" class="file-input-hidden" accept="audio/*" onchange="handleFileSelect(event)" style="display: none;">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="cancelAddDataModal(event)">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add to Profile Corpus</button>
+            </div>
+        </form>
     </div>
+</div>
 
     <!-- Toast Notification Container -->
     <div id="toast" class="toast">
