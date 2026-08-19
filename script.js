@@ -13,8 +13,10 @@ if (typeof supabase !== 'undefined' && supabase.createClient) {
     console.warn("Supabase library not loaded.");
 }
 
-const HF_TOKEN = "hf_gSbxaufuEbeoNYceHOBqdYoBrLT1QTjLjU";
 const TRANSLATION_API_KEY = "AIzaSyCVMRE1muxsrQsgm1-rNcQQl569CfIQ0ng";
+
+//GoogleAPI for text to speech features
+const GOOGLE_TTS_API_KEY = "AIzaSyAVzAl3yiqDkzWoxV_mQs_J5g6uEuGAkRs";
 
 // Helper: resolves any language name to an ISO code via Google Translate API
 async function getIsoCode(languageName) {
@@ -663,33 +665,30 @@ function renderFlashcardUI(node) {
             <h2 style="font-size: 1.8em; color: #0f172a; margin: 0 0 16px 0;">${targetText}</h2>
             
             <button type="button" class="btn btn-secondary" 
-                    onclick="playLessonAudio('${cleanText}', '${node.audioSrc || ''}', '${langName}')" 
+                    onclick="playLessonAudio('${cleanText}', '${langName}')" 
                     style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; cursor: pointer;">
                 <i class="fa-solid fa-volume-high"></i> Listen Pronunciation
             </button>
         </div>
     `;
 }
+
 function flipFlashcard() {
     if (!window.currentModalFlashcard) return;
     const card = window.currentModalFlashcard;
     const textEl = document.getElementById("flashcard-text");
     const labelEl = document.getElementById("flashcard-side-label");
-    const cardEl = document.getElementById("flashcard-card");
 
-    if (!textEl || !cardEl || !labelEl) return;
+    if (!textEl || !labelEl) return;
 
     card.isFlipped = !card.isFlipped;
+    
     if (card.isFlipped) {
         labelEl.innerText = `Back (${card.targetLang})`;
-        textEl.innerText = card.back;
-        cardEl.style.background = "#eff6ff";
-        cardEl.style.borderColor = "#93c5fd";
+        textEl.innerText = `"${card.back}"`;
     } else {
         labelEl.innerText = `Front (${card.knownLang})`;
         textEl.innerText = `"${card.front}"`;
-        cardEl.style.background = "#f8fafc";
-        cardEl.style.borderColor = "#cbd5e1";
     }
 }
 
@@ -703,65 +702,53 @@ function closeExerciseModal() {
 }
 
 // --- UPDATE & PERSIST TRANSLATION CORRECTIONS ---
-async function updateNodeTranslation() {
-    const inputEl = document.getElementById("exercise-user-input") || document.getElementById("edit-target-text-input");
-    if (!inputEl) return;
-
+function updateNodeTranslation() {
+    const inputEl = document.getElementById("edit-target-text-input") || document.getElementById("exercise-user-input");
+    if (!inputEl || !appState.activeNode) return;
+    
     const newTranslation = inputEl.value.trim();
-    if (!newTranslation) {
-        showToast("Please enter a valid translation.");
-        return;
+    appState.activeNode.targetText = newTranslation;
+    
+    if (window.currentModalFlashcard) {
+        window.currentModalFlashcard.back = newTranslation;
     }
-
-    if (appState.activeNode) {
-        // 1. Update active node in memory
-        appState.activeNode.targetText = newTranslation;
-
-        // 2. Sync inside appState.lessonNodes array
-        const nodeInList = appState.lessonNodes.find(n => n.id === appState.activeNode.id);
-        if (nodeInList) {
-            nodeInList.targetText = newTranslation;
-        }
-
-        // 3. Update active modal flashcard state
-        if (window.currentModalFlashcard) {
-            window.currentModalFlashcard.back = newTranslation;
-
-            // If card is currently flipped, update visible text live
-            const textEl = document.getElementById("flashcard-text");
-            if (textEl && window.currentModalFlashcard.isFlipped) {
-                textEl.innerText = newTranslation;
-            }
-        }
-
-        // 4. Save system-wide to LocalStorage and Supabase
-        saveStateToStorage();
-        saveUserLanguagesToSupabase();
-
-        // 5. Re-render lesson map
-        if (typeof renderLessonMap === "function") renderLessonMap();
-
-        showToast("Translation updated system-wide!");
-    }
+    saveUserLanguagesToSupabase();
+    saveStateToStorage();
+    showToast("Translation updated successfully!");
 }
-// Triggers MMS-TTS for the active flashcard/modal phrase
-function playCurrentModalAudio() {
+
+  
+async function playCurrentModalAudio() {
     if (!window.currentModalFlashcard) return;
     const card = window.currentModalFlashcard;
-    const targetText = card.back || card.front;
-    playLessonAudio(targetText, appState.activeNode?.audioSrc || "", card.targetLang);
+    const textToSpeak = card.back || card.front;
+    await playLessonAudio(textToSpeak, card.targetLang);
 }
 
 // Handler for HTML modal audio button (lesson-exercise-modal in index.html)
-function playAudioMock() {
-    if (window.currentModalFlashcard) {
-        playCurrentModalAudio();
-    } else if (appState.activeNode) {
-        const activeTargetObj = appState.user.targetLanguages[appState.user.activeTargetIndex] || appState.user.targetLanguages[0];
-        const targetLangName = activeTargetObj ? activeTargetObj.name : "Target";
-        playLessonAudio(appState.activeNode.targetText || appState.activeNode.prompt, appState.activeNode.audioSrc || "", targetLangName);
+async function playLessonAudio(text, langName = "English", voiceName = null) {
+    showToast("Generating audio...");
+
+    const langCode = getLanguageIsoCode(langName);
+    const audioUrl = await fetchGoogleCloudTTS(text, langCode, voiceName);
+
+    if (audioUrl) {
+        const audio = new Audio(audioUrl);
+        audio.play().catch(err => {
+            console.error("Audio playback failed:", err);
+            showToast("Audio playback was blocked by the browser.");
+        });
+    } else if ("speechSynthesis" in window) {
+        console.warn("Falling back to browser speech synthesis.");
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.85;
+        window.speechSynthesis.speak(utterance);
+    } else {
+        showToast("Audio unavailable.");
     }
 }
+
 
 function submitExerciseAnswer() {
     if (appState.activeNode) {
@@ -842,98 +829,210 @@ async function triggerRecordMock(btn) {
 }
 // Map common language names to ISO 639-3 codes without hardcoding exhaustive lists
 function getLanguageIsoCode(langName) {
-    if (!langName) return "yor";
+    if (!langName) return "en-US";
     const name = langName.toLowerCase().trim();
     
-    // Dynamic match for active target languages
-    if (name.includes("yoruba")) return "yor";
-    if (name.includes("sousou") || name.includes("susu")) return "sus";
-    if (name.includes("swahili")) return "swh";
-    if (name.includes("hausa")) return "hau";
-    if (name.includes("igbo")) return "ibo";
+    // Google Cloud TTS BCP-47 language codes
+    if (name.includes("yoruba")) return "yo-NG"; // Yoruba (Nigeria)
+    if (name.includes("swahili")) return "sw-KE"; // Swahili (Kenya)
+    if (name.includes("swati")) return "ss-SZ";   // Swati
+    if (name.includes("somali")) return "so-SO";  // Somali
+    if (name.includes("igbo")) return "ig-NG";    // Igbo (Nigeria)
+    if (name.includes("french")) return "fr-FR";  // French
+    if (name.includes("spanish")) return "es-ES"; // Spanish
+    if (name.includes("english")) return "en-US"; // English
 
-    // Fallback: use current active target's isoCode property if present
+    // Fallback: use active target's code property if present, or default to English
     const activeTarget = appState.user.targetLanguages?.[appState.user.activeTargetIndex];
-    return activeTarget?.isoCode || "yor";
+    return activeTarget?.isoCode || "en-US";
 }
 
-// Fetch native audio blob from Hugging Face MMS-TTS
-async function fetchMmsTtsAudio(textToSpeak, langName) {
-    const isoCode = getLanguageIsoCode(langName);
-    const modelUrl = `https://api-inference.huggingface.co/models/facebook/mms-tts-${isoCode}`;
+// Example unified function combining Translate and TTS
+async function translateAndSpeak(textToTranslate, targetLangCode) {
+    const translationEndpoint = `[translation.googleapis.com](https://translation.googleapis.com/language/translate/v2?key=${TRANSLATION_API_KEY})`;
+    
+    const translateResponse = await fetch(translationEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            q: textToTranslate,
+            target: targetLangCode
+        })
+    });
+
+    const translateData = await translateResponse.json();
+
+    if (!translateResponse.ok) {
+        throw new Error(translateData.error?.message || "Translation request failed.");
+    }
+
+    const translatedText = translateData.data?.translations?.[0]?.translatedText || textToTranslate;
+
+    const bcp47Locale = getLanguageIsoCode(targetLangCode);
+    const audioUrl = await fetchGoogleCloudTTS(translatedText, bcp47Locale);
+
+    if (audioUrl) {
+        const audio = new Audio(audioUrl);
+        await audio.play();
+    }
+
+    return translatedText;
+}
+
+
+async function fetchGoogleCloudTTS(text, languageCode = "en-US", voiceName = null) {
+    const endpoint = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_API_KEY}`;
+
+    const payload = {
+        input: { text: text },
+        voice: {
+            languageCode: languageCode,
+            ssmlGender: "NEUTRAL",
+            ...(voiceName ? { name: voiceName } : {})
+        },
+        audioConfig: { 
+            audioEncoding: "MP3" 
+        }
+    };
 
     try {
-        const response = await fetch(modelUrl, {
-            headers: {
-                "Authorization": `Bearer ${HF_TOKEN}`,
-                "Content-Type": "application/json"
-            },
+        const response = await fetch(endpoint, {
             method: "POST",
-            body: JSON.stringify({ inputs: textToSpeak })
+            headers: {
+                "Content-Type": "application/json; charset=utf-8"
+            },
+            body: JSON.stringify(payload)
         });
 
+        const data = await response.json();
+
         if (!response.ok) {
-            throw new Error(`MMS-TTS API returned status ${response.status}`);
+            throw new Error(`Google TTS Error (${response.status}): ${data.error?.message || response.statusText}`);
         }
 
-        const audioBlob = await response.blob();
-        return URL.createObjectURL(audioBlob);
-    } catch (error) {
-        console.warn("MMS-TTS API offline or failed:", error);
+        if (!data.audioContent) {
+            throw new Error("No audioContent returned from Google TTS.");
+        }
+
+        const blob = b64toBlob(data.audioContent, "audio/mp3");
+        return URL.createObjectURL(blob);
+    } catch (err) {
+        console.error("Google Cloud TTS request failed:", err);
         return null;
     }
 }
 
-// Global Audio Player for Lessons and Flashcards
-async function playLessonAudio(text, customAudioSrc, langName) {
-    // 1. Play custom uploaded audio note if present
-    if (customAudioSrc && customAudioSrc !== "") {
-        try {
-            const audio = new Audio(customAudioSrc);
-            await audio.play();
-            return;
-        } catch (err) {
-            console.warn("Custom audio playback failed, generating TTS:", err);
+        
+
+// Helper utility to convert base64 audio response from Google into a playable Blob URL
+function b64toBlob(b64Data, contentType = '', sliceSize = 512) {
+    const byteCharacters = atob(b64Data);
+    const byteArrays = [];
+
+    for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+        const slice = byteCharacters.slice(offset, offset + sliceSize);
+        const byteNumbers = new Array(slice.length);
+        
+        for (let i = 0; i < slice.length; i++) {
+            byteNumbers[i] = slice.charCodeAt(i);
         }
+        
+        const byteArray = new Uint8Array(byteNumbers);
+        byteArrays.push(byteArray);
     }
 
-    // 2. Fetch native audio from Hugging Face MMS-TTS
-    showToast("Loading pronunciation...");
-    const generatedAudioUrl = await fetchMmsTtsAudio(text, langName);
-
-    if (generatedAudioUrl) {
-        const audio = new Audio(generatedAudioUrl);
-        audio.play();
-    } else {
-        // 3. Fallback to browser TTS if API is reaching cold start or unavailable
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 0.85;
-            window.speechSynthesis.speak(utterance);
-        } else {
-            showToast("Audio currently unavailable.");
-        }
-    }
+    return new Blob(byteArrays, { type: contentType });
 }
-async function sendToSunbirdASR(audioBlob) {
-    const modelUrl = "https://api-inference.huggingface.co/models/Sunbird/asr-whisper-51-african-languages";
+
+
+// Send recorded microphone audio blob to ElevenLabs Speech-to-Text (Scribe v2) API
+async function sendToElevenLabsSTT(audioBlob) {
+    if (!ELEVENLABS_API_KEY || ELEVENLABS_API_KEY.includes("your_elevenlabs")) {
+        showToast("ElevenLabs API key missing for transcription.", "error");
+        return "";
+    }
+
+    const url = "https://api.elevenlabs.io/v1/speech-to-text";
+    const formData = new FormData();
+    formData.append("file", audioBlob, "recording.wav");
+    formData.append("model_id", "scribe_v2"); // State-of-the-art multi-language transcription model
 
     try {
-        const response = await fetch(modelUrl, {
-            headers: {
-                "Authorization": `Bearer ${HF_TOKEN}`,
-                "Content-Type": "audio/wav"
-            },
+        const response = await fetch(url, {
             method: "POST",
-            body: audioBlob
+            headers: {
+                "xi-api-key": ELEVENLABS_API_KEY
+            },
+            body: formData
         });
+
+        if (!response.ok) {
+            throw new Error(`ElevenLabs STT error: ${response.status} ${response.statusText}`);
+        }
 
         const result = await response.json();
         return result.text || "";
     } catch (error) {
-        console.error("Sunbird ASR API Error:", error);
+        console.error("ElevenLabs Speech-to-Text API Error:", error);
+        showToast("Transcription failed.", "error");
         return "";
+    }
+}
+
+// Updated Microphone Recording Handler
+async function triggerRecordMock(btn) {
+    const inputGroup = btn.closest(".sample-input-group");
+    const targetInput = inputGroup ? (inputGroup.querySelector(".sample-target-input") || inputGroup.parentElement?.querySelector("input")) : null;
+
+    if (!isRecording) {
+        try {
+            audioChunks = [];
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) audioChunks.push(event.data);
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+
+            btn.innerHTML = `<i class="fa-solid fa-circle-dot" style="color:red"></i> Stop Recording`;
+            btn.style.background = "#FEE2E2";
+            btn.style.color = "#991B1B";
+            showToast("Recording... Speak clearly into microphone.");
+        } catch (err) {
+            console.error("Microphone access error:", err);
+            showToast("Microphone access denied or unavailable.");
+        }
+    } else {
+        isRecording = false;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Transcribing...`;
+        btn.style.background = "#FEF3C7";
+        btn.style.color = "#92400E";
+
+        mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+            
+            // Send audio to ElevenLabs Scribe STT API
+            const transcription = await sendToElevenLabsSTT(audioBlob);
+
+            if (transcription) {
+                if (targetInput) targetInput.value = transcription;
+                const modalInput = document.getElementById("add-modal-sentence");
+                if (modalInput) modalInput.value = transcription;
+                showToast("Successfully transcribed with ElevenLabs!");
+            } else {
+                showToast("No transcription returned.");
+            }
+
+            btn.innerHTML = `<i class="fa-solid fa-microphone"></i> Record Audio Sentence`;
+            btn.style.background = "#f1f5f9";
+            btn.style.color = "#334155";
+        };
+
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
     }
 }
 
